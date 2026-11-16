@@ -19,9 +19,11 @@ if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
     $stmt = db()->prepare('SELECT id, full_name FROM users WHERE email = ? AND is_verified = 0 LIMIT 1');
     $stmt->bind_param('s', $email);
     $stmt->execute();
-    $stmt->bind_result($userId, $fullName);
-    if ($stmt->fetch()) {
-        $stmt->close();
+    $account = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($account !== false) {
+        $userId = $account['id'];
+        $fullName = $account['full_name'];
         $token = bin2hex(random_bytes(16));
         $expires = date('Y-m-d H:i:s', time() + 86400);
         $update = db()->prepare('UPDATE users SET verification_token = ?, token_expires_at = ? WHERE id = ? AND is_verified = 0');

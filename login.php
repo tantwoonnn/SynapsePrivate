@@ -10,9 +10,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = db()->prepare('SELECT id, full_name, email, password_hash, role, is_verified FROM users WHERE email = ? LIMIT 1');
     $stmt->bind_param('s', $email);
     $stmt->execute();
-    $stmt->bind_result($id, $fullName, $accountEmail, $passwordHash, $role, $isVerified);
-    $found = $stmt->fetch();
+    $account = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+    $found = $account !== false;
+    if ($found) {
+        $id = $account['id'];
+        $fullName = $account['full_name'];
+        $accountEmail = $account['email'];
+        $passwordHash = $account['password_hash'];
+        $role = $account['role'];
+        $isVerified = $account['is_verified'];
+    }
     if ($found && password_verify($password, $passwordHash) && (int) $isVerified !== 1) {
         $_SESSION['pending_email'] = $accountEmail;
         flash('warning', 'Your account still needs email verification.');

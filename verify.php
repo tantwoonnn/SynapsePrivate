@@ -6,9 +6,10 @@ if (preg_match('/^[a-f0-9]{32}$/', $token)) {
     $stmt = db()->prepare('SELECT id, email FROM users WHERE verification_token = ? AND is_verified = 0 AND token_expires_at > NOW() LIMIT 1');
     $stmt->bind_param('s', $token);
     $stmt->execute();
-    $stmt->bind_result($userId, $email);
-    if ($stmt->fetch()) {
-        $stmt->close();
+    $account = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($account !== false) {
+        $userId = $account['id'];
         $update = db()->prepare('UPDATE users SET is_verified = 1, verification_token = NULL, token_expires_at = NULL WHERE id = ? AND verification_token = ? AND is_verified = 0 AND token_expires_at > NOW()');
         $update->bind_param('is', $userId, $token);
         $update->execute();
