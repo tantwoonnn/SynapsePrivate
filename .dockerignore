@@ -1,0 +1,14 @@
+.env
+.env.*
+.git
+.github
+.vercel
+.codex
+.agents
+graphify-out
+vendor
+storage/tutor_applications/*
+!storage/tutor_applications/.htaccess
+!storage/tutor_applications/.gitkeep
+Dockerfile
+Dockerfile.*

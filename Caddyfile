@@ -1,0 +1,9 @@
+:{$PORT:80} {
+    root * /app
+    encode zstd gzip
+
+    @private path /.env* /.git* /.dockerignore /.gitignore /config/* /includes/* /storage/* /vendor/* /database.sql /supabase_schema.sql /composer.json /composer.lock /Dockerfile* /Caddyfile /api/*
+    respond @private 404
+
+    php_server
+}

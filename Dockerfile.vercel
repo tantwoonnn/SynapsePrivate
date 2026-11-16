@@ -1,0 +1,16 @@
+FROM dunglas/frankenphp:1-php8.4-alpine
+
+WORKDIR /app
+
+# Synapse uses PostgreSQL on Vercel, Gmail API requests, and mbstring/fileinfo for uploads.
+RUN install-php-extensions pdo_pgsql pdo_mysql curl mbstring
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
+
+COPY . .
+COPY Caddyfile /etc/caddy/Caddyfile
+
+ENV PORT=80
+CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
