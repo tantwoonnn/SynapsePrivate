@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } catch (RuntimeException $exception) {
         $error = $exception->getMessage();
-    } catch (mysqli_sql_exception $exception) {
+    } catch (PDOException $exception) {
         $error = 'Could not save the account. Check whether the email is already in use.';
     }
 }

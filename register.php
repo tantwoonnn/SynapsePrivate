@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('warning', 'Account created, but the verification email could not be sent. Check Gmail API setup, then request another email.');
             }
             redirect('verify-email.php');
-        } catch (mysqli_sql_exception $exception) {
+        } catch (PDOException $exception) {
             $errors[] = 'That email address may already be registered.';
         }
     }

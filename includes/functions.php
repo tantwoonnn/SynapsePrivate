@@ -4,7 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/env.php';
 require_once __DIR__ . '/../config/database.php';
 
-function db(): mysqli
+function db(): SynapseConnection
 {
     global $conn;
     return $conn;
@@ -17,7 +17,10 @@ function e(mixed $value): string
 
 function url(string $path = ''): string
 {
-    return rtrim(project_env('APP_URL', 'http://localhost/Synapse'), '/') . '/' . ltrim($path, '/');
+    $baseUrl = project_env('APP_URL');
+    if ($baseUrl === '' && getenv('VERCEL_URL')) $baseUrl = 'https://' . getenv('VERCEL_URL');
+    if ($baseUrl === '') $baseUrl = 'http://localhost/Synapse';
+    return rtrim($baseUrl, '/') . '/' . ltrim($path, '/');
 }
 
 function redirect(string $path): never

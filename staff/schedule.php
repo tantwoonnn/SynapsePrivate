@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 log_activity((int) $tutor['id'], $logAction, day_name((int) $day) . ' ' . $start . '-' . $end);
                 flash('success', $id ? 'Weekly availability updated.' : 'Weekly availability added.');
                 redirect('staff/schedule.php');
-            } catch (mysqli_sql_exception $exception) {
+            } catch (PDOException $exception) {
                 $error = 'That availability period is already listed.';
             }
         }

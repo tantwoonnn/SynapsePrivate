@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 log_activity((int) $learner['id'], 'SESSION_REVIEWED', 'Reviewed appointment #' . $id);
                 flash('success', 'Thank you for sharing your feedback.');
                 redirect('user/dashboard.php');
-            } catch (mysqli_sql_exception $exception) {
+            } catch (PDOException $exception) {
                 $error = 'A review may already have been submitted for this session.';
             }
         }

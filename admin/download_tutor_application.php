@@ -20,26 +20,19 @@ if (!$application || !$application['attachment_name'] || !preg_match('/^[a-f0-9]
     exit('File not found.');
 }
 
-$directory = realpath(dirname(__DIR__) . '/storage/tutor_applications');
-$file = realpath(dirname(__DIR__) . '/storage/tutor_applications/' . $storedName);
-if ($directory === false || $file === false || !str_starts_with($file, $directory . DIRECTORY_SEPARATOR) || !is_file($file)) {
-    http_response_code(404);
-    exit('File not found.');
-}
-
-$mime = (new finfo(FILEINFO_MIME_TYPE))->file($file);
-$allowed = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png'];
-if (!in_array($mime, $allowed, true)) {
+$file = load_tutor_application_file($storedName);
+if ($file === false) {
     http_response_code(404);
     exit('File not found.');
 }
 
 $downloadName = str_replace(["\r", "\n", '"'], ['', '', ''], basename((string) $application['attachment_name']));
-header('Content-Type: ' . $mime);
-header('Content-Length: ' . filesize($file));
+header('Content-Type: ' . $file['mime']);
+header('Content-Length: ' . $file['size']);
 header('Content-Disposition: attachment; filename="' . addslashes($downloadName) . '"');
 header('X-Content-Type-Options: nosniff');
 header('Cache-Control: private, no-store');
 log_activity((int) $_SESSION['user']['id'], 'TUTOR_APPLICATION_FILE_DOWNLOADED', 'Downloaded attachment for application #' . $applicationId);
-readfile($file);
+if (isset($file['data'])) echo $file['data'];
+else readfile($file['file']);
 exit;

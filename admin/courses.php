@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             log_activity((int) $admin['id'], 'COURSE_DELETED', 'Deleted course #' . $id);
             flash('success', 'Subject deleted.');
             redirect('admin/courses.php');
-        } catch (mysqli_sql_exception $exception) {
+        } catch (PDOException $exception) {
             $error = 'This subject is linked to appointments and cannot be deleted.';
         }
     } elseif ($action === 'save') {
@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 log_activity((int) $admin['id'], $actionName, 'Saved subject ' . $code);
                 flash('success', 'Subject saved.');
                 redirect('admin/courses.php');
-            } catch (mysqli_sql_exception $exception) {
+            } catch (PDOException $exception) {
                 $error = 'Could not save the subject. The course code may already exist.';
             }
         }

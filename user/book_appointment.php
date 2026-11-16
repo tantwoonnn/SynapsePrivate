@@ -13,7 +13,7 @@ $form = [
     'notes' => trim((string) ($_POST['notes'] ?? '')),
 ];
 $tutors = db()->query("SELECT id, full_name FROM users WHERE role = 'staff' ORDER BY full_name");
-$courseCatalog = db()->query('SELECT id, course_code, course_name FROM courses ORDER BY course_code')->fetch_all(MYSQLI_ASSOC);
+$courseCatalog = db()->query('SELECT id, course_code, course_name FROM courses ORDER BY course_code')->fetch_all();
 $tutorSubjects = [];
 $subjectResult = db()->query('SELECT tc.tutor_id, c.id, c.course_code, c.course_name FROM tutor_courses tc JOIN courses c ON c.id = tc.course_id ORDER BY c.course_code');
 while ($subject = $subjectResult->fetch_assoc()) {

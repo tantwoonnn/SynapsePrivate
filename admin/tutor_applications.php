@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$applications = db()->query('SELECT a.id, a.learner_id, a.academic_program, a.subjects, a.experience, a.motivation, a.attachment_path, a.attachment_name, a.status, a.admin_note, a.applied_at, u.full_name, u.email FROM tutor_applications a JOIN users u ON u.id = a.learner_id ORDER BY FIELD(a.status, \'PENDING\', \'REJECTED\', \'APPROVED\'), a.applied_at DESC');
+$applications = db()->query("SELECT a.id, a.learner_id, a.academic_program, a.subjects, a.experience, a.motivation, a.attachment_path, a.attachment_name, a.status, a.admin_note, a.applied_at, u.full_name, u.email FROM tutor_applications a JOIN users u ON u.id = a.learner_id ORDER BY CASE a.status WHEN 'PENDING' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 3 END, a.applied_at DESC");
 $pageTitle = 'Tutor Applications';
 require __DIR__ . '/../includes/header.php';
 ?>
