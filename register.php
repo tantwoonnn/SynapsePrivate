@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (send_verification_email($email, $name, $token)) {
                 flash('success', 'Account created. Check your inbox for the verification link.');
             } else {
-                flash('warning', 'Account created, but the verification email could not be sent. Check SMTP setup, then request another email.');
+                flash('warning', 'Account created, but the verification email could not be sent. Check Gmail API setup, then request another email.');
             }
             redirect('verify-email.php');
         } catch (mysqli_sql_exception $exception) {

@@ -1,2 +1,5 @@
 /.env
 /vendor/
+/storage/tutor_applications/*
+!/storage/tutor_applications/.htaccess
+!/storage/tutor_applications/.gitkeep

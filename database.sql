@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS tutor_applications (
     subjects VARCHAR(300) NOT NULL,
     experience TEXT NOT NULL,
     motivation TEXT NOT NULL,
+    attachment_path VARCHAR(80) NULL,
+    attachment_name VARCHAR(255) NULL,
     status ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
     admin_note VARCHAR(500) NULL,
     applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -60,6 +62,19 @@ CREATE TABLE IF NOT EXISTS tutor_applications (
     CONSTRAINT fk_tutor_application_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_tutor_application_status (status, applied_at)
 ) ENGINE=InnoDB;
+
+-- Add optional supporting-file metadata to existing tutor applications.
+SET @has_application_attachment_path = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tutor_applications' AND COLUMN_NAME = 'attachment_path');
+SET @ddl_application_attachment_path = IF(@has_application_attachment_path = 0, 'ALTER TABLE tutor_applications ADD COLUMN attachment_path VARCHAR(80) NULL AFTER motivation', 'SELECT 1');
+PREPARE stmt FROM @ddl_application_attachment_path;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_application_attachment_name = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tutor_applications' AND COLUMN_NAME = 'attachment_name');
+SET @ddl_application_attachment_name = IF(@has_application_attachment_name = 0, 'ALTER TABLE tutor_applications ADD COLUMN attachment_name VARCHAR(255) NULL AFTER attachment_path', 'SELECT 1');
+PREPARE stmt FROM @ddl_application_attachment_name;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS courses (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -81,6 +96,16 @@ CREATE TABLE IF NOT EXISTS tutor_schedules (
     UNIQUE KEY uq_schedule (tutor_id, day_of_week, start_time, end_time)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS tutor_courses (
+    tutor_id INT NOT NULL,
+    course_id INT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (tutor_id, course_id),
+    CONSTRAINT fk_tutor_course_tutor FOREIGN KEY (tutor_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_tutor_course_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+    INDEX idx_tutor_course_course (course_id)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS appointments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     learner_id INT NOT NULL,
@@ -88,8 +113,11 @@ CREATE TABLE IF NOT EXISTS appointments (
     course_id INT NOT NULL,
     booking_date DATE NOT NULL,
     session_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    contact_info VARCHAR(150) NULL,
     status ENUM('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
     notes VARCHAR(500) NULL,
+    rejection_reason VARCHAR(500) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_appointment_learner FOREIGN KEY (learner_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_appointment_tutor FOREIGN KEY (tutor_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -98,6 +126,29 @@ CREATE TABLE IF NOT EXISTS appointments (
     INDEX idx_appointment_learner (learner_id),
     INDEX idx_appointment_queue (status, created_at)
 ) ENGINE=InnoDB;
+
+-- Add the tutor rejection explanation to older appointment tables.
+SET @has_rejection_reason = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'rejection_reason');
+SET @ddl_rejection_reason = IF(@has_rejection_reason = 0, 'ALTER TABLE appointments ADD COLUMN rejection_reason VARCHAR(500) NULL AFTER notes', 'SELECT 1');
+PREPARE stmt FROM @ddl_rejection_reason;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Add session end time and learner contact details to older appointment tables.
+SET @has_appointment_end_time = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'end_time');
+SET @ddl_appointment_end_time = IF(@has_appointment_end_time = 0, 'ALTER TABLE appointments ADD COLUMN end_time TIME NULL AFTER session_time', 'SELECT 1');
+PREPARE stmt FROM @ddl_appointment_end_time;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE appointments SET end_time = ADDTIME(session_time, '01:00:00') WHERE end_time IS NULL;
+ALTER TABLE appointments MODIFY COLUMN end_time TIME NOT NULL;
+
+SET @has_appointment_contact_info = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'contact_info');
+SET @ddl_appointment_contact_info = IF(@has_appointment_contact_info = 0, 'ALTER TABLE appointments ADD COLUMN contact_info VARCHAR(150) NULL AFTER end_time', 'SELECT 1');
+PREPARE stmt FROM @ddl_appointment_contact_info;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS session_reviews (
     id INT AUTO_INCREMENT PRIMARY KEY,

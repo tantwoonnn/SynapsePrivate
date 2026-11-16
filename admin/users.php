@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->close();
             log_activity((int) $admin['id'], 'USER_CREATED', 'Created ' . $email . ' with role ' . $role);
             $sent = send_verification_email($email, $name, $token);
-            flash($sent ? 'success' : 'warning', $sent ? 'Account created. A verification link was emailed.' : 'Account created, but the verification email could not be sent. Check Composer and SMTP setup, then use the resend link on the verification page.');
+            flash($sent ? 'success' : 'warning', $sent ? 'Account created. A verification link was emailed.' : 'Account created, but the verification email could not be sent. Check Composer and Gmail API setup, then use the resend link on the verification page.');
             redirect('admin/users.php');
         }
         if ($action === 'role') {

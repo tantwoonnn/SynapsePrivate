@@ -8,7 +8,7 @@ if ($loggedInUser) {
     if ($loggedInUser['role'] === 'admin') {
         $nav = ['admin/dashboard.php' => 'Dashboard', 'admin/users.php' => 'Users', 'admin/tutor_applications.php' => 'Tutor Applications', 'admin/courses.php' => 'Courses', 'admin/appointments.php' => 'Appointments', 'admin/activity_logs.php' => 'Activity Logs', 'admin/reports.php' => 'Reports'];
     } elseif ($loggedInUser['role'] === 'staff') {
-        $nav = ['staff/dashboard.php' => 'Approval Queue', 'staff/schedule.php' => 'My Availability'];
+        $nav = ['staff/dashboard.php' => 'Approval Queue', 'staff/subjects.php' => 'My Subjects', 'staff/schedule.php' => 'My Availability'];
     } else {
         $nav = ['user/dashboard.php' => 'My Sessions', 'user/tutors.php' => 'Find a Tutor', 'user/book_appointment.php' => 'Book Session', 'user/tutor_application.php' => 'Apply as Tutor'];
     }

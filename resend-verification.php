@@ -32,7 +32,7 @@ if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
         if (send_verification_email($email, $fullName, $token)) {
             flash('success', 'If the account exists and is still unverified, a new link has been sent.');
         } else {
-            flash('warning', 'Email delivery failed. Check SMTP configuration before requesting another link.');
+            flash('warning', 'Email delivery failed. Check Gmail API configuration before requesting another link.');
         }
         redirect('verify-email.php');
     }
