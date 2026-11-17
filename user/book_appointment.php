@@ -142,8 +142,8 @@ require __DIR__ . '/../includes/header.php';
     <div class="col-md-6"><label class="form-label">Start time</label><input class="form-control" type="time" name="session_time" value="<?= e($form['session_time']) ?>" required></div>
     <div class="col-md-6"><label class="form-label">End time</label><input class="form-control" type="time" name="end_time" value="<?= e($form['end_time']) ?>" required></div>
     <div class="col-md-6"><label class="form-label">Contact number or social account <span class="text-muted">(optional)</span></label><input class="form-control" type="text" name="contact_info" maxlength="150" value="<?= e($form['contact_info']) ?>" placeholder="Phone number, Messenger, Discord, etc."><div class="form-text">Share a contact method the tutor can use to coordinate the session.</div></div>
-    <div class="col-12"><label class="form-label" for="meeting_place">Meeting place</label><input class="form-control" type="text" id="meeting_place" name="meeting_place" maxlength="200" required value="<?= e($form['meeting_place']) ?>" placeholder="Campus building, library, cafe, etc."><div class="form-text">Type a place the tutor will recognize. Then click the map once to drop the meeting pin; drag it if you need to adjust it.</div></div>
-    <div class="col-12"><div class="d-flex flex-wrap gap-2 mb-2"><button class="btn btn-sm btn-outline-secondary" id="use-my-location" type="button">Use my location</button><button class="btn btn-sm btn-outline-secondary" id="clear-meeting-pin" type="button">Clear pin</button><span class="small text-muted align-self-center" id="meeting-pin-status" aria-live="polite">Click the map to place your meeting pin.</span></div><div id="meeting-map" aria-label="Choose the session meeting point on the map"></div><input type="hidden" id="meeting_latitude" name="meeting_latitude" value="<?= e($form['meeting_latitude']) ?>"><input type="hidden" id="meeting_longitude" name="meeting_longitude" value="<?= e($form['meeting_longitude']) ?>"><div class="form-text">The pin will be shared with your tutor. Map data © OpenStreetMap contributors.</div></div>
+    <div class="col-12"><label class="form-label" for="meeting_place">Meeting place</label><input class="form-control" type="text" id="meeting_place" name="meeting_place" maxlength="200" required value="<?= e($form['meeting_place']) ?>" placeholder="Campus building, library, cafe, etc."><div class="form-text">Enter a place name the tutor will recognize, then use “Add a pin” to choose its spot on the map.</div></div>
+    <div class="col-12"><div class="d-flex flex-wrap gap-2 mb-2"><button class="btn btn-primary btn-sm" id="add-meeting-pin" type="button">Add a pin</button><button class="btn btn-sm btn-outline-secondary" id="use-my-location" type="button">Use my location</button><button class="btn btn-sm btn-outline-secondary" id="clear-meeting-pin" type="button">Clear pin</button><span class="small text-muted align-self-center" id="meeting-pin-status" aria-live="polite">Select “Add a pin”, then click the map.</span></div><div id="meeting-map" aria-label="Choose the session meeting point on the map"></div><input type="hidden" id="meeting_latitude" name="meeting_latitude" value="<?= e($form['meeting_latitude']) ?>"><input type="hidden" id="meeting_longitude" name="meeting_longitude" value="<?= e($form['meeting_longitude']) ?>"><div class="form-text">The pin will be shared with your tutor. Map data © OpenStreetMap contributors.</div></div>
     <div class="col-12"><label class="form-label">What would you like help with?</label><textarea class="form-control" name="notes" maxlength="500" rows="3"><?= e($form['notes']) ?></textarea></div>
 </div><button class="btn btn-primary mt-4" type="submit">Send request</button></div></form><script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script><script>
 if (window.L) {
@@ -157,7 +157,9 @@ if (window.L) {
     const latitudeInput = document.getElementById('meeting_latitude');
     const longitudeInput = document.getElementById('meeting_longitude');
     const pinStatus = document.getElementById('meeting-pin-status');
+    const addPinButton = document.getElementById('add-meeting-pin');
     let meetingMarker = null;
+    let placingPin = false;
     function setMeetingPin(latitude, longitude, centerMap) {
         const point = L.latLng(Number(latitude), Number(longitude));
         if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng) || !point.isValid()) return;
@@ -173,10 +175,24 @@ if (window.L) {
         }
         latitudeInput.value = point.lat.toFixed(7);
         longitudeInput.value = point.lng.toFixed(7);
-        pinStatus.textContent = 'Meeting pin selected. Drag it to adjust.';
+        placingPin = false;
+        addPinButton.textContent = 'Move the pin';
+        addPinButton.classList.replace('btn-primary', 'btn-outline-primary');
+        pinStatus.textContent = 'Pin added. Select “Move the pin” to choose another spot, or drag it.';
         if (centerMap) meetingMap.setView(point, Math.max(meetingMap.getZoom(), 16));
     }
-    meetingMap.on('click', event => setMeetingPin(event.latlng.lat, event.latlng.lng, false));
+    addPinButton.addEventListener('click', () => {
+        placingPin = true;
+        addPinButton.textContent = 'Click the map…';
+        addPinButton.classList.replace('btn-outline-primary', 'btn-primary');
+        pinStatus.textContent = 'Now click the map where you want to meet.';
+        meetingMap.getContainer().style.cursor = 'crosshair';
+    });
+    meetingMap.on('click', event => {
+        if (!placingPin) return;
+        meetingMap.getContainer().style.cursor = '';
+        setMeetingPin(event.latlng.lat, event.latlng.lng, false);
+    });
     if (latitudeInput.value !== '' && longitudeInput.value !== '') {
         setMeetingPin(latitudeInput.value, longitudeInput.value, true);
     }
@@ -186,9 +202,13 @@ if (window.L) {
     document.getElementById('clear-meeting-pin').addEventListener('click', () => {
         if (meetingMarker) meetingMap.removeLayer(meetingMarker);
         meetingMarker = null;
+        placingPin = false;
+        addPinButton.textContent = 'Add a pin';
+        addPinButton.classList.replace('btn-outline-primary', 'btn-primary');
+        meetingMap.getContainer().style.cursor = '';
         latitudeInput.value = '';
         longitudeInput.value = '';
-        pinStatus.textContent = 'Choose the meeting point on the map.';
+        pinStatus.textContent = 'Select “Add a pin”, then click the map.';
     });
     document.getElementById('use-my-location').addEventListener('click', () => {
         if (!navigator.geolocation) {
