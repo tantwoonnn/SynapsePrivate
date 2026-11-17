@@ -21,7 +21,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         try {
             $authResponse = supabase_auth_signup($email, $password, $name);
-            $authUserId = (string) ($authResponse['user']['id'] ?? '');
+            // Supabase's signup endpoint returns the user at the response root
+            // when email confirmation is enabled; tolerate a nested user too.
+            $authUser = $authResponse['user'] ?? $authResponse;
+            $authUserId = (string) ($authUser['id'] ?? '');
+            // A previous signup may have created the Auth identity before the
+            // profile insert failed. Sign in here to recover that identity ID.
+            if ($authUserId === '') {
+                $loginResponse = supabase_auth_login($email, $password);
+                $authUserId = (string) ($loginResponse['user']['id'] ?? '');
+            }
             if ($authUserId === '') throw new RuntimeException('Supabase Auth did not return a user ID.');
             $stmt = db()->prepare('SELECT id, auth_user_id FROM users WHERE email = ? LIMIT 1');
             $stmt->bind_param('s', $email);
