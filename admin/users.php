@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/mailer.php';
+require_once __DIR__ . '/../includes/supabase_auth.php';
 $admin = require_role('admin');
 $error = '';
 
@@ -10,22 +11,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($action === 'create') {
             $name = trim((string) ($_POST['full_name'] ?? ''));
-            $email = trim((string) ($_POST['email'] ?? ''));
+            $email = strtolower(trim((string) ($_POST['email'] ?? '')));
             $password = (string) ($_POST['password'] ?? '');
             $role = (string) ($_POST['role'] ?? 'user');
             if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8 || !in_array($role, ['user', 'staff', 'admin'], true)) {
                 throw new RuntimeException('Enter a name, valid email, role, and password of at least 8 characters.');
             }
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            $token = bin2hex(random_bytes(16));
-            $expires = date('Y-m-d H:i:s', time() + 86400);
-            $stmt = db()->prepare('INSERT INTO users (full_name, email, password_hash, role, is_verified, verification_token, token_expires_at) VALUES (?, ?, ?, ?, 0, ?, ?)');
-            $stmt->bind_param('ssssss', $name, $email, $hash, $role, $token, $expires);
+            $authUser = supabase_auth_admin_create_user($email, $password, $name);
+            $authUserId = (string) ($authUser['id'] ?? '');
+            if ($authUserId === '') throw new RuntimeException('Supabase Auth did not return a user ID.');
+            $stmt = db()->prepare('SELECT id, auth_user_id FROM users WHERE email = ? LIMIT 1');
+            $stmt->bind_param('s', $email);
+            $stmt->execute();
+            $existingProfile = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($existingProfile !== false && !empty($existingProfile['auth_user_id'])) {
+                throw new RuntimeException('A Synapse profile is already linked to this email.');
+            }
+            if ($existingProfile !== false) {
+                $userId = (int) $existingProfile['id'];
+                $stmt = db()->prepare('UPDATE users SET auth_user_id = ?, role = ?, is_verified = 1, verification_token = NULL, token_expires_at = NULL WHERE id = ? AND auth_user_id IS NULL');
+                $stmt->bind_param('ssi', $authUserId, $role, $userId);
+            } else {
+                $stmt = db()->prepare('INSERT INTO users (auth_user_id, full_name, email, password_hash, role, is_verified) VALUES (?, ?, ?, NULL, ?, 1)');
+                $stmt->bind_param('ssss', $authUserId, $name, $email, $role);
+            }
             $stmt->execute();
             $stmt->close();
             log_activity((int) $admin['id'], 'USER_CREATED', 'Created ' . $email . ' with role ' . $role);
-            $sent = send_verification_email($email, $name, $token);
-            flash($sent ? 'success' : 'warning', $sent ? 'Account created. A verification link was emailed.' : 'Account created, but the verification email could not be sent. Check Composer and Gmail API setup, then use the resend link on the verification page.');
+            flash('success', 'Account created and confirmed by the administrator. Share the temporary password with the user securely.');
             redirect('admin/users.php');
         }
         if ($action === 'role') {
@@ -44,6 +58,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'delete') {
             $id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT);
             if (!$id || (int) $id === (int) $admin['id']) throw new RuntimeException('You cannot delete your own account.');
+            $lookup = db()->prepare('SELECT auth_user_id FROM users WHERE id = ?');
+            $lookup->bind_param('i', $id);
+            $lookup->execute();
+            $profile = $lookup->get_result()->fetch_assoc();
+            $lookup->close();
+            if ($profile === false) throw new RuntimeException('Account not found.');
+            if (!empty($profile['auth_user_id'])) supabase_auth_admin_delete_user((string) $profile['auth_user_id']);
             $stmt = db()->prepare('DELETE FROM users WHERE id = ?');
             $stmt->bind_param('i', $id);
             $stmt->execute();
@@ -56,6 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = $exception->getMessage();
     } catch (PDOException $exception) {
         $error = 'Could not save the account. Check whether the email is already in use.';
+    } catch (Throwable $exception) {
+        error_log('Synapse admin account creation error: ' . $exception->getMessage());
+        $error = 'Could not complete the account action. Check Supabase Auth configuration and try again.';
     }
 }
 

@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/includes/functions.php';
-require_once __DIR__ . '/includes/mailer.php';
+require_once __DIR__ . '/includes/supabase_auth.php';
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     exit('Method not allowed.');
@@ -16,29 +16,12 @@ if (time() - $lastSent < 60) {
 $_SESSION['last_verification_resend'] = time();
 
 if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    $stmt = db()->prepare('SELECT id, full_name FROM users WHERE email = ? AND is_verified = 0 LIMIT 1');
-    $stmt->bind_param('s', $email);
-    $stmt->execute();
-    $account = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if ($account !== false) {
-        $userId = $account['id'];
-        $fullName = $account['full_name'];
-        $token = bin2hex(random_bytes(16));
-        $expires = date('Y-m-d H:i:s', time() + 86400);
-        $update = db()->prepare('UPDATE users SET verification_token = ?, token_expires_at = ? WHERE id = ? AND is_verified = 0');
-        $update->bind_param('ssi', $token, $expires, $userId);
-        $update->execute();
-        $update->close();
-        log_activity((int) $userId, 'VERIFICATION_RESENT', 'Issued a new email verification link');
-        if (send_verification_email($email, $fullName, $token)) {
-            flash('success', 'If the account exists and is still unverified, a new link has been sent.');
-        } else {
-            flash('warning', 'Email delivery failed. Check Gmail API configuration before requesting another link.');
-        }
-        redirect('verify-email.php');
+    try {
+        supabase_auth_resend_signup($email);
+    } catch (Throwable $exception) {
+        // Keep the response generic to avoid disclosing which addresses have accounts.
+        error_log('Synapse Supabase verification resend error: ' . $exception->getMessage());
     }
-    $stmt->close();
 }
-flash('info', 'If the account exists and is still unverified, a new link has been sent.');
+flash('info', 'If the account exists and still needs verification, Supabase Auth will send a new link.');
 redirect('verify-email.php');

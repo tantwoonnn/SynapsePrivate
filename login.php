@@ -1,38 +1,55 @@
 <?php
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/supabase_auth.php';
 if ($user = current_user()) redirect(dashboard_for($user['role']));
 
 $error = '';
+if (isset($_GET['verified']) && $_GET['verified'] === '1') {
+    flash('success', 'Email verified. You can now log in.');
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
-    $email = trim((string) ($_POST['email'] ?? ''));
+    $email = strtolower(trim((string) ($_POST['email'] ?? '')));
     $password = (string) ($_POST['password'] ?? '');
-    $stmt = db()->prepare('SELECT id, full_name, email, password_hash, role, is_verified FROM users WHERE email = ? LIMIT 1');
-    $stmt->bind_param('s', $email);
-    $stmt->execute();
-    $account = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    $found = $account !== false;
-    if ($found) {
-        $id = $account['id'];
-        $fullName = $account['full_name'];
-        $accountEmail = $account['email'];
-        $passwordHash = $account['password_hash'];
-        $role = $account['role'];
-        $isVerified = $account['is_verified'];
-    }
-    if ($found && password_verify($password, $passwordHash) && (int) $isVerified !== 1) {
-        $_SESSION['pending_email'] = $accountEmail;
-        flash('warning', 'Your account still needs email verification.');
-        redirect('verify-email.php');
-    }
-    if ($found && password_verify($password, $passwordHash)) {
+    try {
+        $authResponse = supabase_auth_login($email, $password);
+        $authUser = $authResponse['user'] ?? [];
+        $authUserId = (string) ($authUser['id'] ?? '');
+        $confirmedAt = $authUser['email_confirmed_at'] ?? $authUser['confirmed_at'] ?? null;
+        if ($authUserId === '' || !$confirmedAt) {
+            $_SESSION['pending_email'] = $email;
+            flash('warning', 'Verify your email before logging in.');
+            redirect('verify-email.php');
+        }
+        $stmt = db()->prepare('SELECT id, full_name, email, role FROM users WHERE auth_user_id = ? LIMIT 1');
+        $stmt->bind_param('s', $authUserId);
+        $stmt->execute();
+        $account = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($account === false) throw new RuntimeException('No Synapse profile is linked to this Supabase Auth account.');
+
+        $id = (int) $account['id'];
+        $role = (string) $account['role'];
+        $stmt = db()->prepare('UPDATE users SET is_verified = 1 WHERE id = ?');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $stmt->close();
         session_regenerate_id(true);
-        $_SESSION['user'] = ['id' => (int) $id, 'full_name' => $fullName, 'email' => $accountEmail, 'role' => $role];
-        log_activity((int) $id, 'LOGIN', 'User logged in');
+        $_SESSION['user'] = ['id' => $id, 'full_name' => $account['full_name'], 'email' => $account['email'], 'role' => $role];
+        log_activity($id, 'LOGIN', 'User logged in');
         redirect(dashboard_for($role));
+    } catch (DomainException $exception) {
+        $message = strtolower($exception->getMessage());
+        if (str_contains($message, 'not confirmed') || str_contains($message, 'not verified')) {
+            $_SESSION['pending_email'] = $email;
+            flash('warning', 'Verify your email before logging in.');
+            redirect('verify-email.php');
+        }
+        $error = 'Invalid email or password.';
+    } catch (Throwable $exception) {
+        error_log('Synapse Supabase login error: ' . $exception->getMessage());
+        $error = 'Login is temporarily unavailable. Please try again.';
     }
-    $error = 'Invalid email or password.';
 }
 
 $pageTitle = 'Log In';

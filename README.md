@@ -6,9 +6,10 @@ Synapse is a PHP and MySQL peer tutoring system. This guide explains how to run 
 
 - XAMPP with Apache, MySQL, and PHP 8.1 or newer.
 - Composer for PHP dependency installation.
-- A Google account and a Google Cloud project configured for the Gmail API if you want to send real verification emails.
+- A Supabase project for Auth, PostgreSQL, and account verification.
+- SMTP credentials from an email provider for booking and tutor workflow notifications.
 
-The PHP installation should have `mysqli`, `mbstring`, and OpenSSL enabled. XAMPP normally includes these extensions.
+The PHP installation should have `curl`, `mysqli`, `mbstring`, and OpenSSL enabled. XAMPP normally includes these extensions.
 
 ## 1. Put the project in XAMPP
 
@@ -27,11 +28,11 @@ The PHP installation should have `mysqli`, `mbstring`, and OpenSSL enabled. XAMP
 2. Choose **Import**.
 3. Select the project's `database.sql` file and import it.
 
-The script creates the `synapse` database, tables, and demo records. It also adds missing email-verification fields and tutor-application fields when run against an existing `synapse` database. It does not drop existing tables or records. Back up your database before importing into an existing project.
+The script creates the `synapse` database, tables, and demo records. It also adds missing Supabase Auth profile links and tutor-application fields when run against an existing `synapse` database. It does not drop existing tables or records. Back up your database before importing into an existing project.
 
 This setup expects the database to be named `synapse`. If your existing database has a different name, export its tables and data, create or select `synapse`, and import that backup there before continuing. Keep the old database until you have confirmed Synapse works.
 
-## 3. Install the Google API client
+## 3. Install the PHP dependencies
 
 Open the project folder in VS Code, then choose **Terminal -> New Terminal**. Run each command separately:
 
@@ -42,17 +43,16 @@ composer install
 
 If PowerShell says Composer is not recognized, install Composer for Windows and select `C:\xampp\php\php.exe` in the installer. Close and reopen VS Code after installation, then check `composer --version`.
 
-## 4. Set up Gmail API email verification
+## 4. Configure Supabase Auth and SMTP
 
-Open [Google Cloud Console](https://console.cloud.google.com/) and set up Gmail API OAuth access:
+In Supabase:
 
-1. Create or select a Google Cloud project and enable **Gmail API**.
-2. Configure the Google Auth Platform consent screen. For a personal Gmail account, choose **External** and add the Gmail account that will send mail as a test user.
-3. Create an OAuth client ID for a **Web application**. Add `https://developers.google.com/oauthplayground` as an authorized redirect URI.
-4. Open [OAuth 2.0 Playground](https://developers.google.com/oauthplayground). In its settings, enable **Use your own OAuth credentials**, select the server-side flow and offline access, and enter your OAuth client ID and secret.
-5. In Step 1, enter the scope `https://www.googleapis.com/auth/gmail.send`, authorize it with the sender Gmail account, then exchange the authorization code in Step 2. Copy the refresh token.
+1. Open **Authentication → URL Configuration**. Set the Site URL to your app address and add the exact login callback `APP_URL/login.php?verified=1` to the allowed redirect URLs. For local work, this is `http://localhost/Synapse/login.php?verified=1`.
+2. Open **Authentication → SMTP Settings** and configure a custom SMTP provider if you need reliable confirmation emails. Set up the email confirmation template to use Supabase’s `{{ .ConfirmationURL }}` link.
+3. Copy the project URL and publishable/anon key from the project API settings. Copy a server-only secret key separately; the admin account creation page needs it.
+4. In the Supabase SQL Editor, run `supabase_schema.sql` for a new database. For an existing Synapse Supabase database, run `supabase_auth_migration.sql` first.
 
-The Gmail API uses OAuth 2.0 and the `gmail.send` permission to send the message. The refresh token lets Synapse obtain access tokens when sending verification emails. If the OAuth app remains in Testing status, Google expires the authorization after seven days, so you will need to authorize again. [Google Gmail OAuth guide](https://developers.google.com/workspace/gmail/api/auth/web-server), [Gmail send scope](https://developers.google.com/workspace/gmail/api/auth/scopes), [Google OAuth testing status](https://support.google.com/cloud/answer/15549945?hl=en)
+Supabase Auth owns passwords, email confirmation, and resend requests. Synapse stores a separate profile row for its role and booking relationships, linked by `auth_user_id`. Existing profile roles are kept when an account signs up again with the same email. Their old password hashes are not imported: users establish their Supabase password through signup, then confirm their email. For the first admin, register with the email already assigned to the admin profile and confirm it; that links the Auth identity while preserving the admin role. If the seed admin uses a `.test` email, create a confirmed Auth user with your real admin email in the Supabase Dashboard and link its UUID to the intended `users` row in the SQL Editor.
 
 Create a local settings file if you have not already:
 
@@ -60,22 +60,28 @@ Create a local settings file if you have not already:
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Fill in the `.env` values. `GMAIL_SENDER_EMAIL` must be the Gmail account you authorized, or one of its configured send-as aliases:
+Fill in the `.env` values. The Supabase secret key is only used by the server-side admin user creation page; never put it in browser code:
 
 ```dotenv
 APP_URL=http://localhost/Synapse
-GOOGLE_OAUTH_CLIENT_ID=your-client-id
-GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
-GOOGLE_OAUTH_REFRESH_TOKEN=your-refresh-token
-GMAIL_SENDER_EMAIL=your-sender@gmail.com
-GMAIL_SENDER_NAME=Synapse
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+SUPABASE_SECRET_KEY=your-server-only-secret-key
+SUPABASE_DATABASE_URL=your-session-pooler-connection-url
+SMTP_HOST=your-smtp-host
+SMTP_PORT=587
+SMTP_ENCRYPTION=tls
+SMTP_USERNAME=your-smtp-username
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM_EMAIL=notifications@example.com
+SMTP_FROM_NAME=Synapse
 ```
 
 Keep `.env` private and do not commit it to GitHub. The repository's `.gitignore` excludes it.
 
 ## 5. Open Synapse
 
-Go to [http://localhost/Synapse/](http://localhost/Synapse/). Register a learner account with an email address you can access, then open the verification link from your inbox. Verified accounts can log in and use the protected pages.
+Go to [http://localhost/Synapse/](http://localhost/Synapse/). Register with an email address you can access, open the Supabase confirmation link, then log in. Existing users should register again with the same email to link their existing Synapse role to Supabase Auth. An administrator can also create confirmed accounts from User Management; that page uses the server-only Supabase key.
 
 ## Demo accounts
 
@@ -88,7 +94,7 @@ These verified accounts are inserted by `database.sql` for local demonstration:
 | Tutor | `staff2@synapse.test` | `Staff@123` |
 | Learner | `user@synapse.test` | `User@123` |
 
-The demo emails use the reserved `.test` domain and cannot receive mail. Use a real email address for new registrations and verification.
+The demo emails use the reserved `.test` domain and cannot receive mail. To use them with Supabase Auth, create the accounts as an administrator or use Supabase's admin tooling to confirm them; use real email addresses for self-service registration.
 
 ## Main features
 
@@ -98,14 +104,16 @@ The demo emails use the reserved `.test` domain and cannot receive mail. Use a r
 - When an administrator approves or rejects a tutor application, Synapse emails the applicant the decision and any review note.
 - Tutors can choose teaching subjects from the administrator's subject catalog, manage weekly availability, review requests in arrival order, and mark sessions complete. A tutor must enter a reason when rejecting a booking, and the learner can see it on their dashboard.
 - Administrators can manage accounts and subjects, review tutor applications and download their supporting files, manage appointments, view activity logs, and print date-filtered reports. Application files are stored with randomized names outside direct web access and are downloaded through an administrator-only page.
-- Email verification links expire after 24 hours and can only be used once.
+- Supabase Auth sends email confirmation links and validates their status at login.
+- Booking and tutor workflow notifications are sent through PHPMailer and the configured SMTP provider.
 
 ## Troubleshooting
 
 - **Unknown database `synapse`:** import `database.sql` in phpMyAdmin and confirm the database name is `synapse`.
 - **Unknown column or table:** import `database.sql` into the `synapse` database. It creates missing tables and adds missing verification, booking, and tutor-application fields without deleting existing data.
 - **Composer is not recognized:** install Composer for Windows, select `C:\xampp\php\php.exe`, and reopen VS Code.
-- **Verification email is not sent:** check that Composer completed, Gmail API is enabled, `.env` has valid OAuth credentials and refresh token, the sender email matches the authorized Gmail account, Apache/MySQL are running, and `APP_URL` is `http://localhost/Synapse`. If the OAuth app is in Testing status, authorize again after the refresh token expires.
+- **Supabase confirmation email is not sent:** check the Supabase Auth SMTP settings, email templates, allowed redirect URL, and `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` values.
+- **Booking notification is not sent:** check that Composer completed and the `SMTP_*` settings match your mail provider.
 - **Database login fails:** the local defaults are in `config/database.php` (`localhost`, user `root`, blank password). Update those values if your MySQL setup uses different credentials.
 
 ## Sharing the project safely

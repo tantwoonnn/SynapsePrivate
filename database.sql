@@ -1,5 +1,5 @@
 -- Synapse database setup for fresh installs and existing synapse databases.
--- This script creates missing tables and adds missing email-verification fields.
+-- This script creates missing tables and adds Supabase Auth profile links.
 -- It does not drop existing data. Keep a backup before importing into a live DB.
 
 CREATE DATABASE IF NOT EXISTS synapse CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -7,6 +7,7 @@ USE synapse;
 
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    auth_user_id CHAR(36) NULL UNIQUE,
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
@@ -18,6 +19,20 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB;
 
 -- Add email-verification fields to older users tables, if any are missing.
+SET @has_auth_user_id = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'auth_user_id');
+SET @ddl_auth_user_id = IF(@has_auth_user_id = 0, 'ALTER TABLE users ADD COLUMN auth_user_id CHAR(36) NULL AFTER id', 'SELECT 1');
+PREPARE stmt FROM @ddl_auth_user_id;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_auth_user_id_unique = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'auth_user_id' AND NON_UNIQUE = 0);
+SET @ddl_auth_user_id_unique = IF(@has_auth_user_id_unique = 0, 'ALTER TABLE users ADD UNIQUE KEY uq_users_auth_user_id (auth_user_id)', 'SELECT 1');
+PREPARE stmt FROM @ddl_auth_user_id_unique;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+ALTER TABLE users MODIFY COLUMN password_hash VARCHAR(255) NULL;
+
 SET @has_is_verified = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'is_verified');
 SET @ddl_is_verified = IF(@has_is_verified = 0, 'ALTER TABLE users ADD COLUMN is_verified TINYINT(1) NOT NULL DEFAULT 1 AFTER role', 'SELECT 1');
 PREPARE stmt FROM @ddl_is_verified;

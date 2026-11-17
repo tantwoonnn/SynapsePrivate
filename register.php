@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/includes/functions.php';
-require_once __DIR__ . '/includes/mailer.php';
+require_once __DIR__ . '/includes/supabase_auth.php';
 if ($user = current_user()) redirect(dashboard_for($user['role']));
 
 $errors = [];
@@ -19,25 +19,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($password !== $confirm) $errors[] = 'Passwords do not match.';
 
     if (!$errors) {
-        $token = bin2hex(random_bytes(16));
-        $expires = date('Y-m-d H:i:s', time() + 86400);
         try {
-            $stmt = db()->prepare("INSERT INTO users (full_name, email, password_hash, role, is_verified, verification_token, token_expires_at) VALUES (?, ?, ?, 'user', 0, ?, ?)");
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt->bind_param('sssss', $name, $email, $hash, $token, $expires);
+            $authResponse = supabase_auth_signup($email, $password, $name);
+            $authUserId = (string) ($authResponse['user']['id'] ?? '');
+            if ($authUserId === '') throw new RuntimeException('Supabase Auth did not return a user ID.');
+            $stmt = db()->prepare('SELECT id, auth_user_id FROM users WHERE email = ? LIMIT 1');
+            $stmt->bind_param('s', $email);
             $stmt->execute();
-            $userId = (int) db()->insert_id;
+            $existingProfile = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($existingProfile !== false && !empty($existingProfile['auth_user_id'])) {
+                throw new RuntimeException('A Synapse profile is already linked to this email.');
+            }
+            if ($existingProfile !== false) {
+                $userId = (int) $existingProfile['id'];
+                $stmt = db()->prepare('UPDATE users SET auth_user_id = ?, is_verified = 0, verification_token = NULL, token_expires_at = NULL WHERE id = ? AND auth_user_id IS NULL');
+                $stmt->bind_param('si', $authUserId, $userId);
+            } else {
+                $stmt = db()->prepare("INSERT INTO users (auth_user_id, full_name, email, password_hash, role, is_verified) VALUES (?, ?, ?, NULL, 'user', 0)");
+                $stmt->bind_param('sss', $authUserId, $name, $email);
+            }
+            $stmt->execute();
+            if ($existingProfile === false) $userId = (int) db()->insert_id;
             $stmt->close();
             log_activity($userId, 'REGISTER', 'Created a learner account');
             $_SESSION['pending_email'] = $email;
-            if (send_verification_email($email, $name, $token)) {
-                flash('success', 'Account created. Check your inbox for the verification link.');
-            } else {
-                flash('warning', 'Account created, but the verification email could not be sent. Check Gmail API setup, then request another email.');
-            }
+            flash('success', 'Account created. Supabase Auth has sent a verification email. Check your inbox before logging in.');
             redirect('verify-email.php');
-        } catch (PDOException $exception) {
-            $errors[] = 'That email address may already be registered.';
+        } catch (DomainException $exception) {
+            $message = strtolower($exception->getMessage());
+            $errors[] = str_contains($message, 'already') || str_contains($message, 'registered')
+                ? 'That email address may already be registered.'
+                : 'Supabase Auth could not create the account. Check the Auth configuration and try again.';
+        } catch (Throwable $exception) {
+            error_log('Synapse Supabase registration error: ' . $exception->getMessage());
+            $errors[] = 'Account creation failed. Check the Supabase Auth and profile database configuration, then try again.';
         }
     }
 }
@@ -47,7 +63,7 @@ require __DIR__ . '/includes/header.php';
 ?>
 <div class="row justify-content-center py-md-4"><div class="col-md-7 col-lg-5"><div class="card"><div class="card-body p-4 p-lg-5">
     <h1 class="page-heading h3">Create a learner account</h1>
-    <p class="text-muted">We will email you a one-time verification link that expires in 24 hours.</p>
+    <p class="text-muted">Supabase Auth will email you a confirmation link. You must confirm your address before logging in.</p>
     <?php if ($errors): ?><div class="alert alert-secondary"><ul class="mb-0"><?php foreach ($errors as $error): ?><li><?= e($error) ?></li><?php endforeach; ?></ul></div><?php endif; ?>
     <form method="post" action="<?= e(url('register.php')) ?>">
         <?= csrf_field() ?>

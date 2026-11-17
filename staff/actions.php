@@ -68,7 +68,7 @@ try {
             . '<p><strong>Subject:</strong> ' . $safeSubject . '<br><strong>When:</strong> ' . $safeWhen . '</p>'
             . $reasonHtml
             . '<p><a href="' . e(url('user/dashboard.php')) . '">Open your Synapse dashboard</a></p></div>';
-        $emailSent = send_gmail_html_email(
+        $emailSent = send_html_email(
             $appointment['learner_email'],
             $appointment['learner_name'],
             $approved ? 'Your Synapse session was accepted' : 'Your Synapse session was declined',

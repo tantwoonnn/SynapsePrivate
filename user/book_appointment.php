@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . '<strong>When:</strong> ' . $safeWhen . '<br>'
                 . '<strong>Learner contact:</strong> ' . $safeContact . '</p>'
                 . '<p><a href="' . $dashboardLink . '">Open your tutor dashboard</a></p></div>';
-            $sent = send_gmail_html_email($validTutor['email'], $validTutor['full_name'], 'New tutoring session request', $html);
+            $sent = send_html_email($validTutor['email'], $validTutor['full_name'], 'New tutoring session request', $html);
             flash($sent ? 'success' : 'warning', $sent
                 ? 'Your request was sent to the tutor, and an email notification was sent.'
                 : 'Your request was saved, but the tutor notification email could not be sent.');

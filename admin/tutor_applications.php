@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     : '<p>Your application to become a Synapse tutor was not approved. You may revise your application and submit it again.</p>')
                 . $safeNote
                 . '<p><a href="' . e(url('login.php')) . '">Sign in to Synapse</a></p></div>';
-            $emailSent = send_gmail_html_email($application['email'], $application['full_name'], $approved ? 'Your Synapse tutor application was approved' : 'Update on your Synapse tutor application', $html);
+            $emailSent = send_html_email($application['email'], $application['full_name'], $approved ? 'Your Synapse tutor application was approved' : 'Update on your Synapse tutor application', $html);
             $successMessage = $approved
                 ? 'Application approved. The learner now has tutor access.'
                 : 'Application rejected. The learner may revise and resubmit it.';
