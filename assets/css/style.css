@@ -45,6 +45,9 @@ body { background: #fff; color: #202124; }
 .dashboard-logout { min-width: 106px; }
 .table thead th { color: #555; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; }
 #meeting-map { height: 340px; min-height: 280px; border: 1px solid #d5d5d5; border-radius: .4rem; z-index: 0; }
+#meeting-map .meeting-pin-icon { background: transparent; border: 0; }
+#meeting-map .meeting-pin-icon span { display: block; width: 24px; height: 24px; margin: 3px; background: #dc3545; border: 3px solid #fff; border-radius: 50% 50% 50% 0; box-shadow: 0 2px 6px #0008; transform: rotate(-45deg); }
+#meeting-map .leaflet-marker-pane { z-index: 700; }
 @media print {
     nav, footer, .no-print, button, form { display: none !important; }
     body { background: #fff; }

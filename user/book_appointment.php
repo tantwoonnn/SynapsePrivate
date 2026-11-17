@@ -147,7 +147,7 @@ require __DIR__ . '/../includes/header.php';
     <div class="col-12"><label class="form-label">What would you like help with?</label><textarea class="form-control" name="notes" maxlength="500" rows="3"><?= e($form['notes']) ?></textarea></div>
 </div><button class="btn btn-primary mt-4" type="submit">Send request</button></div></form><script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script><script>
 if (window.L) {
-    const meetingMap = L.map('meeting-map', { tap: true }).setView([14.5995, 120.9842], 12);
+    const meetingMap = L.map('meeting-map', { tap: true, preferCanvas: false, zoomAnimation: false }).setView([14.5995, 120.9842], 12);
     setTimeout(() => meetingMap.invalidateSize(), 250);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
@@ -164,7 +164,17 @@ if (window.L) {
         const point = L.latLng(Number(latitude), Number(longitude));
         if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng) || !point.isValid()) return;
         if (!meetingMarker) {
-            meetingMarker = L.marker(point, { draggable: true }).addTo(meetingMap);
+            meetingMarker = L.marker(point, {
+                draggable: true,
+                opacity: 1,
+                zIndexOffset: 1000,
+                icon: L.divIcon({
+                    className: 'meeting-pin-icon',
+                    html: '<span aria-hidden="true"></span>',
+                    iconSize: [30, 40],
+                    iconAnchor: [15, 38]
+                })
+            }).addTo(meetingMap);
             meetingMarker.bindPopup('Session meeting point');
             meetingMarker.on('dragend', () => {
                 const moved = meetingMarker.getLatLng();
@@ -179,6 +189,7 @@ if (window.L) {
         addPinButton.textContent = 'Move the pin';
         addPinButton.classList.replace('btn-primary', 'btn-outline-primary');
         pinStatus.textContent = 'Pin added. Select “Move the pin” to choose another spot, or drag it.';
+        meetingMarker.openPopup();
         if (centerMap) meetingMap.setView(point, Math.max(meetingMap.getZoom(), 16));
     }
     addPinButton.addEventListener('click', () => {
@@ -193,6 +204,7 @@ if (window.L) {
         meetingMap.getContainer().style.cursor = '';
         setMeetingPin(event.latlng.lat, event.latlng.lng, false);
     });
+    meetingMap.whenReady(() => setTimeout(() => meetingMap.invalidateSize(true), 300));
     if (latitudeInput.value !== '' && longitudeInput.value !== '') {
         setMeetingPin(latitudeInput.value, longitudeInput.value, true);
     }
