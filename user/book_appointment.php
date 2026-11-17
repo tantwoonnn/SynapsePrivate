@@ -199,11 +199,22 @@ if (window.L) {
         pinStatus.textContent = 'Now click the map where you want to meet.';
         meetingMap.getContainer().style.cursor = 'crosshair';
     });
-    meetingMap.on('click', event => {
+    function placePinFromMapPoint(event) {
         if (!placingPin) return;
         meetingMap.getContainer().style.cursor = '';
-        setMeetingPin(event.latlng.lat, event.latlng.lng, false);
-    });
+        const point = meetingMap.containerPointToLatLng(L.point(event.clientX - meetingMap.getContainer().getBoundingClientRect().left, event.clientY - meetingMap.getContainer().getBoundingClientRect().top));
+        setMeetingPin(point.lat, point.lng, false);
+    }
+    meetingMap.on('click', placePinFromMapPoint);
+    meetingMap.getContainer().addEventListener('click', event => {
+        if (!placingPin) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const bounds = meetingMap.getContainer().getBoundingClientRect();
+        const point = meetingMap.containerPointToLatLng(L.point(event.clientX - bounds.left, event.clientY - bounds.top));
+        meetingMap.getContainer().style.cursor = '';
+        setMeetingPin(point.lat, point.lng, false);
+    }, true);
     meetingMap.whenReady(() => setTimeout(() => meetingMap.invalidateSize(true), 300));
     if (latitudeInput.value !== '' && longitudeInput.value !== '') {
         setMeetingPin(latitudeInput.value, longitudeInput.value, true);
