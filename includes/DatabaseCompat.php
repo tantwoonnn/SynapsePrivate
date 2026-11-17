@@ -28,8 +28,22 @@ final class SynapseConnection
     {
         if (!preg_match('/^\s*INSERT\s+INTO\s+"?([A-Za-z_][A-Za-z0-9_]*)/i', $sql, $match)) return;
         if ($this->driver === 'pgsql') {
+            // Some relation tables use composite keys rather than generated IDs.
+            // Do not ask PostgreSQL for a sequence that those tables do not have.
+            $table = $match[1];
+            $column = $this->pdo->prepare(
+                'SELECT column_default FROM information_schema.columns '
+                . 'WHERE table_schema = current_schema() AND table_name = :table AND column_name = :column'
+            );
+            $column->execute(['table' => $table, 'column' => 'id']);
+            $default = $column->fetchColumn();
+            if (!is_string($default) || !str_contains($default, 'nextval(')) {
+                $this->lastInsertId = false;
+                return;
+            }
+
             $statement = $this->pdo->prepare("SELECT currval(pg_get_serial_sequence(?, 'id'))");
-            $statement->execute([$match[1]]);
+            $statement->execute([$table]);
             $id = $statement->fetchColumn();
             $this->lastInsertId = $id === false ? false : (string) $id;
         } else {
