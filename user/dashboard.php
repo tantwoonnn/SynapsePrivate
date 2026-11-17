@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/functions.php';
 $learner = require_role('user');
-$stmt = db()->prepare('SELECT a.id, a.booking_date, a.session_time, a.end_time, a.contact_info, a.status, a.notes, a.rejection_reason, t.full_name AS tutor_name, c.course_code, c.course_name, r.id AS review_id FROM appointments a JOIN users t ON t.id = a.tutor_id JOIN courses c ON c.id = a.course_id LEFT JOIN session_reviews r ON r.appointment_id = a.id WHERE a.learner_id = ? ORDER BY a.booking_date DESC, a.session_time DESC, a.created_at DESC');
+$stmt = db()->prepare('SELECT a.id, a.booking_date, a.session_time, a.end_time, a.contact_info, a.status, a.notes, a.rejection_reason, a.agreed_rate, t.full_name AS tutor_name, c.course_code, c.course_name, r.id AS review_id FROM appointments a JOIN users t ON t.id = a.tutor_id JOIN courses c ON c.id = a.course_id LEFT JOIN session_reviews r ON r.appointment_id = a.id WHERE a.learner_id = ? ORDER BY a.booking_date DESC, a.session_time DESC, a.created_at DESC');
 $stmt->bind_param('i', $learner['id']);
 $stmt->execute();
 $sessions = $stmt->get_result();

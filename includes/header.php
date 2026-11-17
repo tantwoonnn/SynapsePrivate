@@ -6,7 +6,7 @@ $currentPath = $_SERVER['SCRIPT_NAME'] ?? '';
 $nav = [];
 if ($loggedInUser) {
     if ($loggedInUser['role'] === 'admin') {
-        $nav = ['admin/dashboard.php' => 'Dashboard', 'admin/users.php' => 'Users', 'admin/tutor_applications.php' => 'Tutor Applications', 'admin/courses.php' => 'Courses', 'admin/appointments.php' => 'Appointments', 'admin/activity_logs.php' => 'Activity Logs', 'admin/reports.php' => 'Reports'];
+        $nav = ['admin/dashboard.php' => 'Dashboard', 'admin/users.php' => 'Users', 'admin/tutor_applications.php' => 'Tutor Applications', 'admin/tutor_rates.php' => 'Tutor Rates', 'admin/courses.php' => 'Courses', 'admin/appointments.php' => 'Appointments', 'admin/activity_logs.php' => 'Activity Logs', 'admin/reports.php' => 'Reports'];
     } elseif ($loggedInUser['role'] === 'staff') {
         $nav = ['staff/dashboard.php' => 'Approval Queue', 'staff/subjects.php' => 'My Subjects', 'staff/schedule.php' => 'My Availability'];
     } else {

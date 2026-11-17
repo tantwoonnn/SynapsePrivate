@@ -114,6 +114,10 @@ CREATE TABLE IF NOT EXISTS tutor_schedules (
 CREATE TABLE IF NOT EXISTS tutor_courses (
     tutor_id INT NOT NULL,
     course_id INT NOT NULL,
+    proposed_rate DECIMAL(10,2) NULL,
+    rate_status ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    rate_reviewed_by INT NULL,
+    rate_reviewed_at DATETIME NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (tutor_id, course_id),
     CONSTRAINT fk_tutor_course_tutor FOREIGN KEY (tutor_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -121,11 +125,26 @@ CREATE TABLE IF NOT EXISTS tutor_courses (
     INDEX idx_tutor_course_course (course_id)
 ) ENGINE=InnoDB;
 
+-- Add tutor-submitted rates and administrator review state to existing subject links.
+SET @has_proposed_rate = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tutor_courses' AND COLUMN_NAME = 'proposed_rate');
+SET @ddl_proposed_rate = IF(@has_proposed_rate = 0, 'ALTER TABLE tutor_courses ADD COLUMN proposed_rate DECIMAL(10,2) NULL AFTER course_id', 'SELECT 1');
+PREPARE stmt FROM @ddl_proposed_rate; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @has_rate_status = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tutor_courses' AND COLUMN_NAME = 'rate_status');
+SET @ddl_rate_status = IF(@has_rate_status = 0, 'ALTER TABLE tutor_courses ADD COLUMN rate_status ENUM(''PENDING'', ''APPROVED'', ''REJECTED'') NOT NULL DEFAULT ''PENDING'' AFTER proposed_rate', 'SELECT 1');
+PREPARE stmt FROM @ddl_rate_status; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @has_rate_reviewed_by = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tutor_courses' AND COLUMN_NAME = 'rate_reviewed_by');
+SET @ddl_rate_reviewed_by = IF(@has_rate_reviewed_by = 0, 'ALTER TABLE tutor_courses ADD COLUMN rate_reviewed_by INT NULL AFTER rate_status', 'SELECT 1');
+PREPARE stmt FROM @ddl_rate_reviewed_by; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @has_rate_reviewed_at = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tutor_courses' AND COLUMN_NAME = 'rate_reviewed_at');
+SET @ddl_rate_reviewed_at = IF(@has_rate_reviewed_at = 0, 'ALTER TABLE tutor_courses ADD COLUMN rate_reviewed_at DATETIME NULL AFTER rate_reviewed_by', 'SELECT 1');
+PREPARE stmt FROM @ddl_rate_reviewed_at; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS appointments (
     id INT AUTO_INCREMENT PRIMARY KEY,
     learner_id INT NOT NULL,
     tutor_id INT NOT NULL,
     course_id INT NOT NULL,
+    agreed_rate DECIMAL(10,2) NULL,
     booking_date DATE NOT NULL,
     session_time TIME NOT NULL,
     end_time TIME NOT NULL,
@@ -141,6 +160,10 @@ CREATE TABLE IF NOT EXISTS appointments (
     INDEX idx_appointment_learner (learner_id),
     INDEX idx_appointment_queue (status, created_at)
 ) ENGINE=InnoDB;
+
+SET @has_agreed_rate = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'agreed_rate');
+SET @ddl_agreed_rate = IF(@has_agreed_rate = 0, 'ALTER TABLE appointments ADD COLUMN agreed_rate DECIMAL(10,2) NULL AFTER course_id', 'SELECT 1');
+PREPARE stmt FROM @ddl_agreed_rate; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Add the tutor rejection explanation to older appointment tables.
 SET @has_rejection_reason = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'rejection_reason');

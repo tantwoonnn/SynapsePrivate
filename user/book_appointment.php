@@ -15,11 +15,11 @@ $form = [
 $tutors = db()->query("SELECT id, full_name FROM users WHERE role = 'staff' ORDER BY full_name");
 $courseCatalog = db()->query('SELECT id, course_code, course_name FROM courses ORDER BY course_code')->fetch_all();
 $tutorSubjects = [];
-$subjectResult = db()->query('SELECT tc.tutor_id, c.id, c.course_code, c.course_name FROM tutor_courses tc JOIN courses c ON c.id = tc.course_id ORDER BY c.course_code');
+$subjectResult = db()->query("SELECT tc.tutor_id, c.id, c.course_code, c.course_name, tc.proposed_rate FROM tutor_courses tc JOIN courses c ON c.id = tc.course_id WHERE tc.rate_status = 'APPROVED' AND tc.proposed_rate IS NOT NULL ORDER BY c.course_code");
 while ($subject = $subjectResult->fetch_assoc()) {
     $tutorSubjects[(string) $subject['tutor_id']][] = [
         'id' => (int) $subject['id'],
-        'label' => $subject['course_code'] . ' · ' . $subject['course_name'],
+        'label' => $subject['course_code'] . ' · ' . $subject['course_name'] . ' — PHP ' . number_format((float) $subject['proposed_rate'], 2) . '/hour',
     ];
 }
 
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $validTutor = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        $stmt = db()->prepare('SELECT c.id, c.course_code, c.course_name FROM tutor_courses tc JOIN courses c ON c.id = tc.course_id WHERE tc.tutor_id = ? AND c.id = ?');
+        $stmt = db()->prepare("SELECT c.id, c.course_code, c.course_name, tc.proposed_rate FROM tutor_courses tc JOIN courses c ON c.id = tc.course_id WHERE tc.tutor_id = ? AND c.id = ? AND tc.rate_status = 'APPROVED' AND tc.proposed_rate IS NOT NULL");
         $stmt->bind_param('ii', $tutorId, $courseId);
         $stmt->execute();
         $validCourse = $stmt->get_result()->fetch_assoc();
@@ -83,8 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->begin_transaction();
             $notes = $form['notes'] === '' ? null : $form['notes'];
             $contactInfo = $form['contact_info'] === '' ? null : $form['contact_info'];
-            $stmt = db()->prepare("INSERT INTO appointments (learner_id, tutor_id, course_id, booking_date, session_time, end_time, contact_info, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)");
-            $stmt->bind_param('iiisssss', $learner['id'], $tutorId, $courseId, $dateValue, $startTime, $endTime, $contactInfo, $notes);
+            $agreedRate = number_format((float) $validCourse['proposed_rate'], 2, '.', '');
+            $stmt = db()->prepare("INSERT INTO appointments (learner_id, tutor_id, course_id, agreed_rate, booking_date, session_time, end_time, contact_info, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)");
+            $stmt->bind_param('iiissssss', $learner['id'], $tutorId, $courseId, $agreedRate, $dateValue, $startTime, $endTime, $contactInfo, $notes);
             $stmt->execute();
             $appointmentId = (int) db()->insert_id;
             $stmt->close();

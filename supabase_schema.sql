@@ -58,6 +58,10 @@ CREATE TABLE IF NOT EXISTS tutor_schedules (
 CREATE TABLE IF NOT EXISTS tutor_courses (
     tutor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     course_id BIGINT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    proposed_rate NUMERIC(10,2),
+    rate_status VARCHAR(10) NOT NULL DEFAULT 'PENDING' CHECK (rate_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+    rate_reviewed_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    rate_reviewed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (tutor_id, course_id)
 );
@@ -68,6 +72,7 @@ CREATE TABLE IF NOT EXISTS appointments (
     learner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     tutor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     course_id BIGINT NOT NULL REFERENCES courses(id) ON DELETE RESTRICT,
+    agreed_rate NUMERIC(10,2),
     booking_date DATE NOT NULL,
     session_time TIME NOT NULL,
     end_time TIME NOT NULL CHECK (end_time > session_time),
