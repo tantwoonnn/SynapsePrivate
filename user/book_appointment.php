@@ -10,6 +10,8 @@ $form = [
     'session_time' => (string) ($_POST['session_time'] ?? ''),
     'end_time' => (string) ($_POST['end_time'] ?? ''),
     'meeting_place' => trim((string) ($_POST['meeting_place'] ?? '')),
+    'meeting_latitude' => trim((string) ($_POST['meeting_latitude'] ?? '')),
+    'meeting_longitude' => trim((string) ($_POST['meeting_longitude'] ?? '')),
     'contact_info' => trim((string) ($_POST['contact_info'] ?? '')),
     'notes' => trim((string) ($_POST['notes'] ?? '')),
 ];
@@ -36,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (!$time || $time->format('H:i') !== $form['session_time']) $error = 'Choose a valid start time.';
     elseif (!$endTimeInput || $endTimeInput->format('H:i') !== $form['end_time'] || $form['end_time'] <= $form['session_time']) $error = 'Choose an end time later than the start time.';
     elseif ($form['meeting_place'] === '' || mb_strlen($form['meeting_place']) > 200) $error = 'Enter a meeting place name of 1 to 200 characters.';
+    elseif (!is_numeric($form['meeting_latitude']) || !is_numeric($form['meeting_longitude']) || (float) $form['meeting_latitude'] < -90 || (float) $form['meeting_latitude'] > 90 || (float) $form['meeting_longitude'] < -180 || (float) $form['meeting_longitude'] > 180) $error = 'Choose the meeting point using the map.';
     elseif (strlen($form['notes']) > 500) $error = 'Notes must be 500 characters or fewer.';
     elseif (mb_strlen($form['contact_info']) > 150) $error = 'Contact details must be 150 characters or fewer.';
     elseif ($date->format('Y-m-d') === date('Y-m-d') && $time->format('H:i') <= date('H:i')) $error = 'Choose a start time later than now.';
@@ -87,8 +90,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $contactInfo = $form['contact_info'] === '' ? null : $form['contact_info'];
             $agreedRate = number_format((float) $validCourse['proposed_rate'], 2, '.', '');
             $meetingPlace = $form['meeting_place'];
-            $stmt = db()->prepare("INSERT INTO appointments (learner_id, tutor_id, course_id, agreed_rate, booking_date, session_time, end_time, meeting_place, contact_info, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)");
-            $stmt->bind_param('iiisssssss', $learner['id'], $tutorId, $courseId, $agreedRate, $dateValue, $startTime, $endTime, $meetingPlace, $contactInfo, $notes);
+            $meetingLatitude = (float) $form['meeting_latitude'];
+            $meetingLongitude = (float) $form['meeting_longitude'];
+            $stmt = db()->prepare("INSERT INTO appointments (learner_id, tutor_id, course_id, agreed_rate, booking_date, session_time, end_time, meeting_place, meeting_latitude, meeting_longitude, contact_info, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)");
+            $stmt->bind_param('iiisssssddss', $learner['id'], $tutorId, $courseId, $agreedRate, $dateValue, $startTime, $endTime, $meetingPlace, $meetingLatitude, $meetingLongitude, $contactInfo, $notes);
             $stmt->execute();
             $appointmentId = (int) db()->insert_id;
             $stmt->close();
@@ -124,6 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $pageTitle = 'Request a Session';
+$includeLeafletAssets = true;
 require __DIR__ . '/../includes/header.php';
 ?>
 <div class="mb-4"><h1 class="page-heading h2">Request a tutoring session</h1><p class="text-muted mb-0">Choose a start and end time within the tutor’s posted availability. The tutor will approve or decline your request.</p></div>
@@ -135,9 +141,25 @@ require __DIR__ . '/../includes/header.php';
     <div class="col-md-6"><label class="form-label">Start time</label><input class="form-control" type="time" name="session_time" value="<?= e($form['session_time']) ?>" required></div>
     <div class="col-md-6"><label class="form-label">End time</label><input class="form-control" type="time" name="end_time" value="<?= e($form['end_time']) ?>" required></div>
     <div class="col-md-6"><label class="form-label">Contact number or social account <span class="text-muted">(optional)</span></label><input class="form-control" type="text" name="contact_info" maxlength="150" value="<?= e($form['contact_info']) ?>" placeholder="Phone number, Messenger, Discord, etc."><div class="form-text">Share a contact method the tutor can use to coordinate the session.</div></div>
-    <div class="col-12"><label class="form-label" for="meeting_place">Meeting place</label><input class="form-control" type="text" id="meeting_place" name="meeting_place" maxlength="200" required value="<?= e($form['meeting_place']) ?>" placeholder="Campus building, library, café, or full address"><div class="form-text">Enter a specific place the tutor can find, such as the campus name and building. The tutor can open it in Google Maps.</div></div>
+    <div class="col-12"><label class="form-label" for="meeting_place">Meeting place</label><input class="form-control" type="text" id="meeting_place" name="meeting_place" maxlength="200" required value="<?= e($form['meeting_place']) ?>" placeholder="Campus building, library, café, or full address"><div class="form-text">Enter a place name, then select “Add a pin” and click the map. The red pin can be dragged to adjust it.</div></div>
+    <div class="col-12"><div class="d-flex flex-wrap gap-2 mb-2"><button class="btn btn-primary btn-sm" id="add-meeting-pin" type="button">Add a pin</button><button class="btn btn-sm btn-outline-secondary" id="use-my-location" type="button">Use my location</button><button class="btn btn-sm btn-outline-secondary" id="clear-meeting-pin" type="button">Clear pin</button><span class="small text-muted align-self-center" id="meeting-pin-status" aria-live="polite">Select “Add a pin”, then click the map.</span></div><div id="meeting-map" aria-label="Choose the meeting point on the map"></div><input type="hidden" id="meeting_latitude" name="meeting_latitude" value="<?= e($form['meeting_latitude']) ?>"><input type="hidden" id="meeting_longitude" name="meeting_longitude" value="<?= e($form['meeting_longitude']) ?>"></div>
     <div class="col-12"><label class="form-label">What would you like help with?</label><textarea class="form-control" name="notes" maxlength="500" rows="3"><?= e($form['notes']) ?></textarea></div>
-</div><button class="btn btn-primary mt-4" type="submit">Send request</button></div></form><script>
+</div><button class="btn btn-primary mt-4" type="submit">Send request</button></div></form><script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script><script>
+if (window.L) {
+const map=L.map('meeting-map').setView([14.5995,120.9842],12);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+const lat=document.getElementById('meeting_latitude'),lng=document.getElementById('meeting_longitude'),status=document.getElementById('meeting-pin-status'),add=document.getElementById('add-meeting-pin');
+const icon=L.icon({iconUrl:'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/images/marker-icon.png',iconRetinaUrl:'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/images/marker-icon-2x.png',shadowUrl:'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/images/marker-shadow.png',iconSize:[25,41],iconAnchor:[12,41],popupAnchor:[1,-34],shadowSize:[41,41]});
+let marker=null,placing=false;
+function setPin(point,center=false){if(!marker)marker=L.marker(point,{icon,draggable:true}).addTo(map).bindPopup('Session meeting point');else marker.setLatLng(point);lat.value=point.lat.toFixed(7);lng.value=point.lng.toFixed(7);placing=false;map.getContainer().style.cursor='';add.textContent='Move the pin';status.textContent='Pin added. Drag it or choose “Move the pin” to adjust.';marker.openPopup();if(center)map.setView(point,Math.max(map.getZoom(),16));}
+add.addEventListener('click',()=>{placing=true;status.textContent='Now click the map where you want to meet.';map.getContainer().style.cursor='crosshair';});
+map.on('click',e=>{if(placing)setPin(e.latlng);});
+map.on('click',e=>{if(placing)return;});
+document.getElementById('clear-meeting-pin').addEventListener('click',()=>{if(marker)map.removeLayer(marker);marker=null;lat.value='';lng.value='';placing=false;map.getContainer().style.cursor='';add.textContent='Add a pin';status.textContent='Select “Add a pin”, then click the map.';});
+document.getElementById('use-my-location').addEventListener('click',()=>{if(!navigator.geolocation){status.textContent='Location is unavailable. Use “Add a pin” instead.';return;}status.textContent='Finding your location…';navigator.geolocation.getCurrentPosition(p=>setPin(L.latLng(p.coords.latitude,p.coords.longitude),true),e=>{status.textContent=e.code===1?'Location permission denied. Use “Add a pin” instead.':'Could not find your location. Use “Add a pin” instead.';},{enableHighAccuracy:true,timeout:12000});});
+if(lat.value&&lng.value)setPin(L.latLng(Number(lat.value),Number(lng.value)),true);setTimeout(()=>map.invalidateSize(true),300);
+}else document.getElementById('meeting-pin-status').textContent='The map could not load. Refresh the page and try again.';
+</script><script>
 const tutorSubjects = <?= json_encode($tutorSubjects, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 const tutorSelect = document.querySelector('select[name="tutor_id"]');
 const subjectSelect = document.getElementById('course_id');
