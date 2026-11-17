@@ -148,6 +148,7 @@ require __DIR__ . '/../includes/header.php';
 </div><button class="btn btn-primary mt-4" type="submit">Send request</button></div></form><script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script><script>
 if (window.L) {
     const meetingMap = L.map('meeting-map', { tap: true }).setView([14.5995, 120.9842], 12);
+    setTimeout(() => meetingMap.invalidateSize(), 250);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -197,12 +198,19 @@ if (window.L) {
         pinStatus.textContent = 'Finding your location…';
         navigator.geolocation.getCurrentPosition(
             position => setMeetingPin(position.coords.latitude, position.coords.longitude, true),
-            () => { pinStatus.textContent = 'Could not get your location. Click the map to choose a pin.'; },
+            error => {
+                const message = error.code === 1
+                    ? 'Location permission was denied. Allow location access in your browser, or click the map to choose a pin.'
+                    : error.code === 2
+                        ? 'Your location could not be determined. Try again or click the map to choose a pin.'
+                        : 'Location lookup timed out. Try again or click the map to choose a pin.';
+                pinStatus.textContent = message;
+            },
             { enableHighAccuracy: true, timeout: 10000 }
         );
     });
 } else {
-    document.getElementById('meeting-pin-status').textContent = 'Map unavailable. Enter the meeting coordinates below to continue.';
+    document.getElementById('meeting-pin-status').textContent = 'The map could not load. Refresh the page or enter a meeting place above.';
 }
 </script><script>
 const tutorSubjects = <?= json_encode($tutorSubjects, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
