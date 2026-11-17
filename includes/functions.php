@@ -23,6 +23,17 @@ function url(string $path = ''): string
     return rtrim($baseUrl, '/') . '/' . ltrim($path, '/');
 }
 
+function meeting_map_url(mixed $latitude, mixed $longitude): ?string
+{
+    if (!is_numeric($latitude) || !is_numeric($longitude)) return null;
+    $latitude = (float) $latitude;
+    $longitude = (float) $longitude;
+    if ($latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) return null;
+    $lat = number_format($latitude, 7, '.', '');
+    $lng = number_format($longitude, 7, '.', '');
+    return 'https://www.openstreetmap.org/?mlat=' . $lat . '&mlon=' . $lng . '#map=17/' . $lat . '/' . $lng;
+}
+
 function redirect(string $path): never
 {
     header('Location: ' . url($path));

@@ -148,6 +148,9 @@ CREATE TABLE IF NOT EXISTS appointments (
     booking_date DATE NOT NULL,
     session_time TIME NOT NULL,
     end_time TIME NOT NULL,
+    meeting_place VARCHAR(200) NULL,
+    meeting_latitude DECIMAL(10,7) NULL,
+    meeting_longitude DECIMAL(10,7) NULL,
     contact_info VARCHAR(150) NULL,
     status ENUM('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
     notes VARCHAR(500) NULL,
@@ -203,6 +206,16 @@ SET @ddl_appointment_end_time = IF(@has_appointment_end_time = 0, 'ALTER TABLE a
 PREPARE stmt FROM @ddl_appointment_end_time;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+SET @has_meeting_place = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'meeting_place');
+SET @ddl_meeting_place = IF(@has_meeting_place = 0, 'ALTER TABLE appointments ADD COLUMN meeting_place VARCHAR(200) NULL AFTER end_time', 'SELECT 1');
+PREPARE stmt FROM @ddl_meeting_place; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @has_meeting_latitude = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'meeting_latitude');
+SET @ddl_meeting_latitude = IF(@has_meeting_latitude = 0, 'ALTER TABLE appointments ADD COLUMN meeting_latitude DECIMAL(10,7) NULL AFTER meeting_place', 'SELECT 1');
+PREPARE stmt FROM @ddl_meeting_latitude; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @has_meeting_longitude = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'meeting_longitude');
+SET @ddl_meeting_longitude = IF(@has_meeting_longitude = 0, 'ALTER TABLE appointments ADD COLUMN meeting_longitude DECIMAL(10,7) NULL AFTER meeting_latitude', 'SELECT 1');
+PREPARE stmt FROM @ddl_meeting_longitude; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 UPDATE appointments SET end_time = ADDTIME(session_time, '01:00:00') WHERE end_time IS NULL;
 ALTER TABLE appointments MODIFY COLUMN end_time TIME NOT NULL;

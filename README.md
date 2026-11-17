@@ -103,6 +103,7 @@ The demo emails use the reserved `.test` domain and cannot receive mail. To use 
 - When a tutor accepts or declines a session request, Synapse emails the learner. Decline emails include the tutor’s reason.
 - When an administrator approves or rejects a tutor application, Synapse emails the applicant the decision and any review note.
 - Tutors can choose teaching subjects from the administrator's subject catalog, manage weekly availability, review requests in arrival order, and mark sessions complete. A tutor must enter a reason when rejecting a booking, and the learner can see it on their dashboard.
+- Learners can enter a recognizable meeting place and set its exact point on an interactive Leaflet map when requesting a session. Tutors see the place and can open its map pin.
 - After a tutor marks a session complete, the learner confirms it or reports an issue for administrator review. Confirmed sessions can be paid online through PayMongo or in-person with cash; the tutor confirms cash receipt.
 - Administrators can manage accounts and subjects, review tutor applications and download their supporting files, manage appointments, view activity logs, and print date-filtered reports. Application files are stored with randomized names outside direct web access and are downloaded through an administrator-only page.
 - Supabase Auth sends email confirmation links and validates their status at login.
@@ -116,6 +117,8 @@ The demo emails use the reserved `.test` domain and cannot receive mail. To use 
 4. Redeploy after adding the variables. A learner can confirm a tutor-completed session from My Sessions and then open its PayMongo checkout. Synapse changes the payment to paid only after the signed webhook matches the session reference, checkout ID, and amount.
 
 Online checkout currently creates test payments only. Payments go to the PayMongo account connected to the API key; automatic transfers to tutors are not included. In-person cash payments are recorded when the tutor confirms receipt.
+
+For an existing database, run `meeting_location_migration.sql` in the Supabase SQL Editor or `meeting_location_mysql_migration.sql` in MySQL before deploying the meeting map change. Fresh databases get the location columns from `supabase_schema.sql` or `database.sql`. The map uses Leaflet with OpenStreetMap tiles and visible attribution; standard OpenStreetMap tiles are best-effort and should be replaced with a tile provider if usage grows beyond ordinary interactive viewing.
 
 ## Troubleshooting
 
