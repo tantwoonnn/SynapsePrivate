@@ -127,7 +127,7 @@ function log_activity(?int $userId, string $action, string $details = ''): void
 function status_badge(string $status): string
 {
     $class = match ($status) {
-        'PENDING' => 'warning text-dark',
+        'PENDING' => 'warning',
         'CONFIRMED' => 'primary',
         'COMPLETED' => 'success',
         'CANCELLED' => 'secondary',

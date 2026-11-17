@@ -53,7 +53,7 @@ article.card:hover, .col-lg-6 > .card.h-100:hover { transform: translateY(-2px);
 .input-group > .btn { border-radius: 0 10px 10px 0; }
 
 /* Badges: soft pills */
-.badge { border-radius: 999px; font-weight: 600; font-size: .72rem; padding: .4em .8em; letter-spacing: .02em; }
+.badge { display: inline-flex; align-items: center; justify-content: center; text-align: center; line-height: 1; border-radius: 999px; font-weight: 600; font-size: .72rem; padding: .55em .8em; letter-spacing: .02em; }
 .badge.bg-warning { background: #fef3c7 !important; color: #92400e !important; }
 .badge.bg-primary { background: #e0e7ff !important; color: #3730a3 !important; }
 .badge.bg-success { background: #d1fae5 !important; color: #065f46 !important; }
