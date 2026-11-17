@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $delete->execute();
         $delete->close();
         if ($courseIds) {
-            $insert = db()->prepare("INSERT INTO tutor_courses (tutor_id, course_id, proposed_rate, rate_status) VALUES (?, ?, ?, 'PENDING') ON DUPLICATE KEY UPDATE proposed_rate = VALUES(proposed_rate), rate_status = 'PENDING', rate_reviewed_by = NULL, rate_reviewed_at = NULL");
+            $insert = db()->prepare("INSERT INTO tutor_courses (tutor_id, course_id, proposed_rate, rate_status) VALUES (?, ?, ?, 'PENDING') ON CONFLICT (tutor_id, course_id) DO UPDATE SET proposed_rate = EXCLUDED.proposed_rate, rate_status = 'PENDING', rate_reviewed_by = NULL, rate_reviewed_at = NULL");
             foreach ($courseIds as $courseId) {
                 $rate = number_format((float) $rates[$courseId], 2, '.', '');
                 $insert->bind_param('iis', $tutor['id'], $courseId, $rate);
