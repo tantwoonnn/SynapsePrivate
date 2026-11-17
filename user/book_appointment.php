@@ -10,8 +10,6 @@ $form = [
     'session_time' => (string) ($_POST['session_time'] ?? ''),
     'end_time' => (string) ($_POST['end_time'] ?? ''),
     'meeting_place' => trim((string) ($_POST['meeting_place'] ?? '')),
-    'meeting_latitude' => trim((string) ($_POST['meeting_latitude'] ?? '')),
-    'meeting_longitude' => trim((string) ($_POST['meeting_longitude'] ?? '')),
     'contact_info' => trim((string) ($_POST['contact_info'] ?? '')),
     'notes' => trim((string) ($_POST['notes'] ?? '')),
 ];
@@ -38,8 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     elseif (!$time || $time->format('H:i') !== $form['session_time']) $error = 'Choose a valid start time.';
     elseif (!$endTimeInput || $endTimeInput->format('H:i') !== $form['end_time'] || $form['end_time'] <= $form['session_time']) $error = 'Choose an end time later than the start time.';
     elseif ($form['meeting_place'] === '' || mb_strlen($form['meeting_place']) > 200) $error = 'Enter a meeting place name of 1 to 200 characters.';
-    elseif (!is_numeric($form['meeting_latitude']) || !is_numeric($form['meeting_longitude'])) $error = 'Choose the meeting point on the map or use your current location.';
-    elseif ((float) $form['meeting_latitude'] < -90 || (float) $form['meeting_latitude'] > 90 || (float) $form['meeting_longitude'] < -180 || (float) $form['meeting_longitude'] > 180) $error = 'The selected meeting coordinates are invalid.';
     elseif (strlen($form['notes']) > 500) $error = 'Notes must be 500 characters or fewer.';
     elseif (mb_strlen($form['contact_info']) > 150) $error = 'Contact details must be 150 characters or fewer.';
     elseif ($date->format('Y-m-d') === date('Y-m-d') && $time->format('H:i') <= date('H:i')) $error = 'Choose a start time later than now.';
@@ -91,10 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $contactInfo = $form['contact_info'] === '' ? null : $form['contact_info'];
             $agreedRate = number_format((float) $validCourse['proposed_rate'], 2, '.', '');
             $meetingPlace = $form['meeting_place'];
-            $meetingLatitude = (float) $form['meeting_latitude'];
-            $meetingLongitude = (float) $form['meeting_longitude'];
-            $stmt = db()->prepare("INSERT INTO appointments (learner_id, tutor_id, course_id, agreed_rate, booking_date, session_time, end_time, meeting_place, meeting_latitude, meeting_longitude, contact_info, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)");
-            $stmt->bind_param('iiisssssddss', $learner['id'], $tutorId, $courseId, $agreedRate, $dateValue, $startTime, $endTime, $meetingPlace, $meetingLatitude, $meetingLongitude, $contactInfo, $notes);
+            $stmt = db()->prepare("INSERT INTO appointments (learner_id, tutor_id, course_id, agreed_rate, booking_date, session_time, end_time, meeting_place, contact_info, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)");
+            $stmt->bind_param('iiisssssss', $learner['id'], $tutorId, $courseId, $agreedRate, $dateValue, $startTime, $endTime, $meetingPlace, $contactInfo, $notes);
             $stmt->execute();
             $appointmentId = (int) db()->insert_id;
             $stmt->close();
@@ -106,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $safeSubject = e($validCourse['course_code'] . ' · ' . $validCourse['course_name']);
             $safeWhen = e(format_date($dateValue) . ' · ' . format_time($startTime) . '–' . format_time($endTime));
             $safeMeetingPlace = e($meetingPlace);
-            $meetingMapUrl = 'https://www.openstreetmap.org/?mlat=' . rawurlencode((string) $meetingLatitude) . '&mlon=' . rawurlencode((string) $meetingLongitude) . '#map=17/' . rawurlencode((string) $meetingLatitude) . '/' . rawurlencode((string) $meetingLongitude);
+            $meetingMapUrl = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode($meetingPlace);
             $safeContact = $contactInfo === null ? 'Not provided' : e($contactInfo);
             $dashboardLink = e(url('staff/dashboard.php'));
             $html = '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">'
@@ -130,7 +124,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $pageTitle = 'Request a Session';
-$includeLeafletAssets = true;
 require __DIR__ . '/../includes/header.php';
 ?>
 <div class="mb-4"><h1 class="page-heading h2">Request a tutoring session</h1><p class="text-muted mb-0">Choose a start and end time within the tutor’s posted availability. The tutor will approve or decline your request.</p></div>
@@ -142,120 +135,9 @@ require __DIR__ . '/../includes/header.php';
     <div class="col-md-6"><label class="form-label">Start time</label><input class="form-control" type="time" name="session_time" value="<?= e($form['session_time']) ?>" required></div>
     <div class="col-md-6"><label class="form-label">End time</label><input class="form-control" type="time" name="end_time" value="<?= e($form['end_time']) ?>" required></div>
     <div class="col-md-6"><label class="form-label">Contact number or social account <span class="text-muted">(optional)</span></label><input class="form-control" type="text" name="contact_info" maxlength="150" value="<?= e($form['contact_info']) ?>" placeholder="Phone number, Messenger, Discord, etc."><div class="form-text">Share a contact method the tutor can use to coordinate the session.</div></div>
-    <div class="col-12"><label class="form-label" for="meeting_place">Meeting place</label><input class="form-control" type="text" id="meeting_place" name="meeting_place" maxlength="200" required value="<?= e($form['meeting_place']) ?>" placeholder="Campus building, library, cafe, etc."><div class="form-text">Enter a place name the tutor will recognize, then use “Add a pin” to choose its spot on the map.</div></div>
-    <div class="col-12"><div class="d-flex flex-wrap gap-2 mb-2"><button class="btn btn-primary btn-sm" id="add-meeting-pin" type="button">Add a pin</button><button class="btn btn-sm btn-outline-secondary" id="use-my-location" type="button">Use my location</button><button class="btn btn-sm btn-outline-secondary" id="clear-meeting-pin" type="button">Clear pin</button><span class="small text-muted align-self-center" id="meeting-pin-status" aria-live="polite">Select “Add a pin”, then click the map.</span></div><div id="meeting-map" aria-label="Choose the session meeting point on the map"></div><input type="hidden" id="meeting_latitude" name="meeting_latitude" value="<?= e($form['meeting_latitude']) ?>"><input type="hidden" id="meeting_longitude" name="meeting_longitude" value="<?= e($form['meeting_longitude']) ?>"><div class="form-text">The pin will be shared with your tutor. Map data © OpenStreetMap contributors.</div></div>
+    <div class="col-12"><label class="form-label" for="meeting_place">Meeting place</label><input class="form-control" type="text" id="meeting_place" name="meeting_place" maxlength="200" required value="<?= e($form['meeting_place']) ?>" placeholder="Campus building, library, café, or full address"><div class="form-text">Enter a specific place the tutor can find, such as the campus name and building. The tutor can open it in Google Maps.</div></div>
     <div class="col-12"><label class="form-label">What would you like help with?</label><textarea class="form-control" name="notes" maxlength="500" rows="3"><?= e($form['notes']) ?></textarea></div>
-</div><button class="btn btn-primary mt-4" type="submit">Send request</button></div></form><script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script><script>
-if (window.L) {
-    const meetingMap = L.map('meeting-map', { tap: true, preferCanvas: false, zoomAnimation: false }).setView([14.5995, 120.9842], 12);
-    setTimeout(() => meetingMap.invalidateSize(), 250);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(meetingMap);
-
-    const latitudeInput = document.getElementById('meeting_latitude');
-    const longitudeInput = document.getElementById('meeting_longitude');
-    const pinStatus = document.getElementById('meeting-pin-status');
-    const addPinButton = document.getElementById('add-meeting-pin');
-    let meetingMarker = null;
-    let placingPin = false;
-    function setMeetingPin(latitude, longitude, centerMap) {
-        const point = L.latLng(Number(latitude), Number(longitude));
-        if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng) || !point.isValid()) return;
-        if (!meetingMarker) {
-            meetingMarker = L.marker(point, {
-                draggable: true,
-                opacity: 1,
-                zIndexOffset: 1000,
-                icon: L.divIcon({
-                    className: 'meeting-pin-icon',
-                    html: '<span aria-hidden="true"></span>',
-                    iconSize: [30, 40],
-                    iconAnchor: [15, 38]
-                })
-            }).addTo(meetingMap);
-            meetingMarker.bindPopup('Session meeting point');
-            meetingMarker.on('dragend', () => {
-                const moved = meetingMarker.getLatLng();
-                setMeetingPin(moved.lat, moved.lng, false);
-            });
-        } else {
-            meetingMarker.setLatLng(point);
-        }
-        latitudeInput.value = point.lat.toFixed(7);
-        longitudeInput.value = point.lng.toFixed(7);
-        placingPin = false;
-        addPinButton.textContent = 'Move the pin';
-        addPinButton.classList.replace('btn-primary', 'btn-outline-primary');
-        pinStatus.textContent = 'Pin added. Select “Move the pin” to choose another spot, or drag it.';
-        meetingMarker.openPopup();
-        if (centerMap) meetingMap.setView(point, Math.max(meetingMap.getZoom(), 16));
-    }
-    addPinButton.addEventListener('click', () => {
-        placingPin = true;
-        addPinButton.textContent = 'Click the map…';
-        addPinButton.classList.replace('btn-outline-primary', 'btn-primary');
-        pinStatus.textContent = 'Now click the map where you want to meet.';
-        meetingMap.getContainer().style.cursor = 'crosshair';
-    });
-    function placePinFromMapPoint(event) {
-        if (!placingPin) return;
-        meetingMap.getContainer().style.cursor = '';
-        const point = meetingMap.containerPointToLatLng(L.point(event.clientX - meetingMap.getContainer().getBoundingClientRect().left, event.clientY - meetingMap.getContainer().getBoundingClientRect().top));
-        setMeetingPin(point.lat, point.lng, false);
-    }
-    meetingMap.on('click', placePinFromMapPoint);
-    meetingMap.getContainer().addEventListener('click', event => {
-        if (!placingPin) return;
-        event.preventDefault();
-        event.stopPropagation();
-        const bounds = meetingMap.getContainer().getBoundingClientRect();
-        const point = meetingMap.containerPointToLatLng(L.point(event.clientX - bounds.left, event.clientY - bounds.top));
-        meetingMap.getContainer().style.cursor = '';
-        setMeetingPin(point.lat, point.lng, false);
-    }, true);
-    meetingMap.whenReady(() => setTimeout(() => meetingMap.invalidateSize(true), 300));
-    if (latitudeInput.value !== '' && longitudeInput.value !== '') {
-        setMeetingPin(latitudeInput.value, longitudeInput.value, true);
-    }
-    [latitudeInput, longitudeInput].forEach(input => input.addEventListener('change', () => {
-        if (latitudeInput.value !== '' && longitudeInput.value !== '') setMeetingPin(latitudeInput.value, longitudeInput.value, true);
-    }));
-    document.getElementById('clear-meeting-pin').addEventListener('click', () => {
-        if (meetingMarker) meetingMap.removeLayer(meetingMarker);
-        meetingMarker = null;
-        placingPin = false;
-        addPinButton.textContent = 'Add a pin';
-        addPinButton.classList.replace('btn-outline-primary', 'btn-primary');
-        meetingMap.getContainer().style.cursor = '';
-        latitudeInput.value = '';
-        longitudeInput.value = '';
-        pinStatus.textContent = 'Select “Add a pin”, then click the map.';
-    });
-    document.getElementById('use-my-location').addEventListener('click', () => {
-        if (!navigator.geolocation) {
-            pinStatus.textContent = 'Location detection is not available in this browser. Click the map to choose a pin.';
-            return;
-        }
-        pinStatus.textContent = 'Finding your location…';
-        navigator.geolocation.getCurrentPosition(
-            position => setMeetingPin(position.coords.latitude, position.coords.longitude, true),
-            error => {
-                const message = error.code === 1
-                    ? 'Location permission was denied. Allow location access in your browser, or click the map to choose a pin.'
-                    : error.code === 2
-                        ? 'Your location could not be determined. Try again or click the map to choose a pin.'
-                        : 'Location lookup timed out. Try again or click the map to choose a pin.';
-                pinStatus.textContent = message;
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-        );
-    });
-} else {
-    document.getElementById('meeting-pin-status').textContent = 'The map could not load. Refresh the page or enter a meeting place above.';
-}
-</script><script>
+</div><button class="btn btn-primary mt-4" type="submit">Send request</button></div></form><script>
 const tutorSubjects = <?= json_encode($tutorSubjects, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 const tutorSelect = document.querySelector('select[name="tutor_id"]');
 const subjectSelect = document.getElementById('course_id');
