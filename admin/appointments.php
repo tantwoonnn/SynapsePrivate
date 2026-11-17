@@ -19,7 +19,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $action = (string) ($_POST['action'] ?? '');
     $id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT);
+    if ($action === 'resolve_issue' && $id) {
+        $stmt = db()->prepare("UPDATE appointments SET completion_issue = NULL WHERE id = ? AND status = 'COMPLETED' AND completion_issue IS NOT NULL AND completion_confirmed_at IS NULL");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $resolved = $stmt->affected_rows === 1;
+        $stmt->close();
+        if ($resolved) log_activity((int) $admin['id'], 'SESSION_ISSUE_RESOLVED', 'Resolved completion report for appointment #' . $id);
+        flash($resolved ? 'success' : 'warning', $resolved ? 'Issue cleared. The learner can now confirm the session.' : 'That issue could not be cleared.');
+        redirect('admin/appointments.php');
+    }
     if ($action === 'delete' && $id) {
+        $paymentCheck = db()->prepare('SELECT id FROM appointment_payments WHERE appointment_id = ?');
+        $paymentCheck->bind_param('i', $id);
+        $paymentCheck->execute();
+        $hasPaymentRecord = (bool) $paymentCheck->get_result()->fetch_assoc();
+        $paymentCheck->close();
+        if ($hasPaymentRecord) {
+            flash('warning', 'This appointment has a payment record and cannot be deleted.');
+            redirect('admin/appointments.php');
+        }
         $stmt = db()->prepare('DELETE FROM appointments WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
@@ -97,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $learners = db()->query("SELECT id, full_name, email FROM users WHERE role = 'user' ORDER BY full_name");
 $tutors = db()->query("SELECT id, full_name, email FROM users WHERE role = 'staff' ORDER BY full_name");
 $courses = db()->query('SELECT id, course_code, course_name FROM courses ORDER BY course_code');
-$appointments = db()->query('SELECT a.id, a.booking_date, a.session_time, a.end_time, a.contact_info, a.status, a.notes, l.full_name AS learner, t.full_name AS tutor, c.course_code, c.course_name FROM appointments a JOIN users l ON l.id=a.learner_id JOIN users t ON t.id=a.tutor_id JOIN courses c ON c.id=a.course_id ORDER BY a.booking_date DESC, a.session_time DESC');
+$appointments = db()->query('SELECT a.id, a.booking_date, a.session_time, a.end_time, a.contact_info, a.status, a.notes, a.completion_issue, l.full_name AS learner, t.full_name AS tutor, c.course_code, c.course_name FROM appointments a JOIN users l ON l.id=a.learner_id JOIN users t ON t.id=a.tutor_id JOIN courses c ON c.id=a.course_id ORDER BY a.booking_date DESC, a.session_time DESC');
 $pageTitle = 'Manage Appointments';
 require __DIR__ . '/../includes/header.php';
 ?>
@@ -108,5 +127,5 @@ require __DIR__ . '/../includes/header.php';
 <div class="col-md-4"><label class="form-label">Tutor</label><select class="form-select" name="tutor_id" required><?php while ($tutor = $tutors->fetch_assoc()): ?><option value="<?= (int) $tutor['id'] ?>" <?= (int) $editing['tutor_id'] === (int) $tutor['id'] ? 'selected' : '' ?>><?= e($tutor['full_name'] . ' · ' . $tutor['email']) ?></option><?php endwhile; ?></select></div>
 <div class="col-md-4"><label class="form-label">Subject</label><select class="form-select" name="course_id" required><?php while ($course = $courses->fetch_assoc()): ?><option value="<?= (int) $course['id'] ?>" <?= (int) $editing['course_id'] === (int) $course['id'] ? 'selected' : '' ?>><?= e($course['course_code'] . ' · ' . $course['course_name']) ?></option><?php endwhile; ?></select></div>
 <div class="col-md-4"><label class="form-label">Date</label><input class="form-control" type="date" name="booking_date" min="<?= e(date('Y-m-d')) ?>" value="<?= e($editing['booking_date']) ?>" required></div><div class="col-md-4"><label class="form-label">Start time</label><input class="form-control" type="time" name="session_time" value="<?= e(substr($editing['session_time'], 0, 5)) ?>" required></div><div class="col-md-4"><label class="form-label">End time</label><input class="form-control" type="time" name="end_time" value="<?= e(substr($editing['end_time'], 0, 5)) ?>" required></div><div class="col-md-6"><label class="form-label">Learner contact</label><input class="form-control" type="text" name="contact_info" maxlength="150" value="<?= e($editing['contact_info'] ?? '') ?>"></div><div class="col-12"><label class="form-label">Notes</label><textarea class="form-control" name="notes" maxlength="500" rows="2"><?= e($editing['notes'] ?? '') ?></textarea></div><div class="col-12"><button class="btn btn-primary" type="submit">Save changes</button> <a class="btn btn-link" href="<?= e(url('admin/appointments.php')) ?>">Cancel</a></div></form></div></div><?php endif; ?>
-<div class="card"><div class="card-body"><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date / time</th><th>Learner</th><th>Tutor</th><th>Subject</th><th>Status</th><th>Actions</th></tr></thead><tbody><?php if ($appointments->num_rows === 0): ?><tr><td colspan="6" class="text-muted">No appointments yet.</td></tr><?php endif; ?><?php while ($row = $appointments->fetch_assoc()): ?><tr><td><?= e(format_date($row['booking_date'])) ?><br><span class="small text-muted"><?= e(format_time($row['session_time'])) ?>–<?= e(format_time($row['end_time'])) ?></span></td><td><?= e($row['learner']) ?><?php if ($row['contact_info']): ?><br><span class="small text-muted"><?= e($row['contact_info']) ?></span><?php endif; ?></td><td><?= e($row['tutor']) ?></td><td><?= e($row['course_code'] . ' · ' . $row['course_name']) ?></td><td><?= status_badge($row['status']) ?></td><td class="d-flex gap-2"><?php if (in_array($row['status'], ['PENDING','CONFIRMED'], true)): ?><a class="btn btn-sm btn-outline-primary" href="<?= e(url('admin/appointments.php?edit=' . (int) $row['id'])) ?>">Edit</a><?php endif; ?><form method="post" data-confirm="Delete this appointment and its review?"><?= csrf_field() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= (int) $row['id'] ?>"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form></td></tr><?php endwhile; ?></tbody></table></div></div></div>
+<div class="card"><div class="card-body"><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Date / time</th><th>Learner</th><th>Tutor</th><th>Subject</th><th>Status / issue</th><th>Actions</th></tr></thead><tbody><?php if ($appointments->num_rows === 0): ?><tr><td colspan="6" class="text-muted">No appointments yet.</td></tr><?php endif; ?><?php while ($row = $appointments->fetch_assoc()): ?><tr><td><?= e(format_date($row['booking_date'])) ?><br><span class="small text-muted"><?= e(format_time($row['session_time'])) ?>–<?= e(format_time($row['end_time'])) ?></span></td><td><?= e($row['learner']) ?><?php if ($row['contact_info']): ?><br><span class="small text-muted"><?= e($row['contact_info']) ?></span><?php endif; ?></td><td><?= e($row['tutor']) ?></td><td><?= e($row['course_code'] . ' · ' . $row['course_name']) ?></td><td><?= status_badge($row['status']) ?><?php if ($row['completion_issue']): ?><div class="small text-danger mt-1"><?= e($row['completion_issue']) ?></div><?php endif; ?></td><td class="d-flex gap-2"><?php if ($row['completion_issue']): ?><form method="post" data-confirm="Clear this report so the learner can confirm the session?"><?= csrf_field() ?><input type="hidden" name="action" value="resolve_issue"><input type="hidden" name="id" value="<?= (int) $row['id'] ?>"><button class="btn btn-sm btn-outline-success" type="submit">Clear issue</button></form><?php endif; ?><?php if (in_array($row['status'], ['PENDING','CONFIRMED'], true)): ?><a class="btn btn-sm btn-outline-primary" href="<?= e(url('admin/appointments.php?edit=' . (int) $row['id'])) ?>">Edit</a><?php endif; ?><form method="post" data-confirm="Delete this appointment and its review?"><?= csrf_field() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= (int) $row['id'] ?>"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form></td></tr><?php endwhile; ?></tbody></table></div></div></div>
 <?php require __DIR__ . '/../includes/footer.php'; ?>

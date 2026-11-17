@@ -103,9 +103,19 @@ The demo emails use the reserved `.test` domain and cannot receive mail. To use 
 - When a tutor accepts or declines a session request, Synapse emails the learner. Decline emails include the tutor’s reason.
 - When an administrator approves or rejects a tutor application, Synapse emails the applicant the decision and any review note.
 - Tutors can choose teaching subjects from the administrator's subject catalog, manage weekly availability, review requests in arrival order, and mark sessions complete. A tutor must enter a reason when rejecting a booking, and the learner can see it on their dashboard.
+- After a tutor marks a session complete, the learner confirms it or reports an issue for administrator review. Confirmed sessions can be paid online through PayMongo or in-person with cash; the tutor confirms cash receipt.
 - Administrators can manage accounts and subjects, review tutor applications and download their supporting files, manage appointments, view activity logs, and print date-filtered reports. Application files are stored with randomized names outside direct web access and are downloaded through an administrator-only page.
 - Supabase Auth sends email confirmation links and validates their status at login.
 - Booking and tutor workflow notifications are sent through PHPMailer and the configured SMTP provider.
+
+## PayMongo test setup
+
+1. Run `payment_migration.sql` in the Supabase SQL Editor. If you already ran it before adding cash, run `cash_payment_migration.sql` as well. For local MySQL, run `payment_mysql_migration.sql`. Fresh databases also get the payment tables from `supabase_schema.sql` or `database.sql`.
+2. To enable online checkout later, set `PAYMONGO_ENABLED=true` and add `PAYMONGO_SECRET_KEY` and `PAYMONGO_WEBHOOK_SECRET` to Vercel. Use the test secret key beginning with `sk_test_` and the signing secret shown for the webhook endpoint. Keep both private. Online payment remains disabled by default.
+3. In PayMongo test mode, create a webhook for `https://YOUR-APP-DOMAIN/webhooks/paymongo.php` and subscribe to `checkout_session.payment.paid`. Use an HTTPS production or preview URL that points to the same environment and database.
+4. Redeploy after adding the variables. A learner can confirm a tutor-completed session from My Sessions and then open its PayMongo checkout. Synapse changes the payment to paid only after the signed webhook matches the session reference, checkout ID, and amount.
+
+Online checkout currently creates test payments only. Payments go to the PayMongo account connected to the API key; automatic transfers to tutors are not included. In-person cash payments are recorded when the tutor confirms receipt.
 
 ## Troubleshooting
 

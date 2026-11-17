@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 verify_csrf();
 $id = filter_var($_POST['appointment_id'] ?? null, FILTER_VALIDATE_INT);
 $action = (string) ($_POST['action'] ?? '');
-if (!$id || !in_array($action, ['approve', 'reject', 'complete'], true)) {
+if (!$id || !in_array($action, ['approve', 'reject', 'complete', 'cash_received'], true)) {
     flash('danger', 'Invalid session action.');
     redirect('staff/dashboard.php');
 }
@@ -22,12 +22,28 @@ if ($action === 'reject' && (mb_strlen($rejectionReason) < 10 || mb_strlen($reje
 $pdo = db();
 $pdo->begin_transaction();
 try {
-    $stmt = $pdo->prepare('SELECT a.booking_date, a.session_time, a.end_time, a.status, l.full_name AS learner_name, l.email AS learner_email, c.course_code, c.course_name FROM appointments a JOIN users l ON l.id = a.learner_id JOIN courses c ON c.id = a.course_id WHERE a.id = ? AND a.tutor_id = ? FOR UPDATE');
+    $stmt = $pdo->prepare('SELECT a.booking_date, a.session_time, a.end_time, a.status, a.completion_confirmed_at, a.completion_issue, l.full_name AS learner_name, l.email AS learner_email, c.course_code, c.course_name FROM appointments a JOIN users l ON l.id = a.learner_id JOIN courses c ON c.id = a.course_id WHERE a.id = ? AND a.tutor_id = ? FOR UPDATE');
     $stmt->bind_param('ii', $id, $tutor['id']);
     $stmt->execute();
     $appointment = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     if (!$appointment) throw new RuntimeException('Session request was not found.');
+
+    if ($action === 'cash_received') {
+        if ($appointment['status'] !== 'COMPLETED' || !$appointment['completion_confirmed_at'] || $appointment['completion_issue'] !== null) {
+            throw new RuntimeException('The learner must confirm the completed session before cash can be confirmed.');
+        }
+        $cash = $pdo->prepare("UPDATE appointment_payments SET status = 'PAID', paid_at = NOW() WHERE appointment_id = ? AND payment_method = 'CASH' AND status = 'PENDING'");
+        $cash->bind_param('i', $id);
+        $cash->execute();
+        $received = $cash->affected_rows === 1;
+        $cash->close();
+        if (!$received) throw new RuntimeException('There is no pending in-person cash payment for this session.');
+        log_activity((int) $tutor['id'], 'CASH_PAYMENT_RECEIVED', 'Confirmed cash for appointment #' . $id);
+        $pdo->commit();
+        flash('success', 'Cash receipt confirmed.');
+        redirect('staff/dashboard.php');
+    }
 
     if ($action === 'approve' && $appointment['status'] === 'PENDING') {
         $check = $pdo->prepare("SELECT id FROM appointments WHERE tutor_id = ? AND booking_date = ? AND status = 'CONFIRMED' AND id <> ? AND session_time < ? AND end_time > ?");

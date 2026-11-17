@@ -152,6 +152,8 @@ CREATE TABLE IF NOT EXISTS appointments (
     status ENUM('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
     notes VARCHAR(500) NULL,
     rejection_reason VARCHAR(500) NULL,
+    completion_confirmed_at DATETIME NULL,
+    completion_issue VARCHAR(500) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_appointment_learner FOREIGN KEY (learner_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_appointment_tutor FOREIGN KEY (tutor_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -171,6 +173,29 @@ SET @ddl_rejection_reason = IF(@has_rejection_reason = 0, 'ALTER TABLE appointme
 PREPARE stmt FROM @ddl_rejection_reason;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+SET @has_completion_confirmed_at = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'completion_confirmed_at');
+SET @ddl_completion_confirmed_at = IF(@has_completion_confirmed_at = 0, 'ALTER TABLE appointments ADD COLUMN completion_confirmed_at DATETIME NULL AFTER rejection_reason', 'SELECT 1');
+PREPARE stmt FROM @ddl_completion_confirmed_at; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+SET @has_completion_issue = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'completion_issue');
+SET @ddl_completion_issue = IF(@has_completion_issue = 0, 'ALTER TABLE appointments ADD COLUMN completion_issue VARCHAR(500) NULL AFTER completion_confirmed_at', 'SELECT 1');
+PREPARE stmt FROM @ddl_completion_issue; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+CREATE TABLE IF NOT EXISTS appointment_payments (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    appointment_id INT NOT NULL UNIQUE,
+    reference_number VARCHAR(80) NOT NULL UNIQUE,
+    checkout_session_id VARCHAR(100) NULL UNIQUE,
+    checkout_url TEXT NULL,
+    amount_minor INT NOT NULL,
+    currency CHAR(3) NOT NULL DEFAULT 'PHP',
+    payment_method ENUM('PAYMONGO', 'CASH') NOT NULL DEFAULT 'PAYMONGO',
+    status ENUM('PENDING', 'PAID') NOT NULL DEFAULT 'PENDING',
+    provider_payment_id VARCHAR(100) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    paid_at DATETIME NULL,
+    CONSTRAINT fk_payment_appointment FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
 
 -- Add session end time and learner contact details to older appointment tables.
 SET @has_appointment_end_time = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'appointments' AND COLUMN_NAME = 'end_time');
