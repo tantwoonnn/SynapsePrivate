@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         db()->begin_transaction();
         $inTransaction = true;
-        $delete = db()->prepare('DELETE FROM tutor_courses WHERE tutor_id = ? AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.tutor_id = tutor_courses.tutor_id AND a.course_id = tutor_courses.course_id)');
+        $delete = db()->prepare('DELETE FROM tutor_courses tc WHERE tc.tutor_id = ? AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.tutor_id = tc.tutor_id AND a.course_id = tc.course_id)');
         $delete->bind_param('i', $tutor['id']);
         $delete->execute();
         $delete->close();
