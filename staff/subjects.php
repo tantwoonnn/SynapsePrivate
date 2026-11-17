@@ -40,10 +40,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         db()->begin_transaction();
         $inTransaction = true;
-        $delete = db()->prepare('DELETE FROM tutor_courses tc WHERE tc.tutor_id = ? AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.tutor_id = tc.tutor_id AND a.course_id = tc.course_id)');
-        $delete->bind_param('i', $tutor['id']);
-        $delete->execute();
-        $delete->close();
+        $existingIds = [];
+        $existingStmt = db()->prepare('SELECT course_id FROM tutor_courses WHERE tutor_id = ?');
+        $existingStmt->bind_param('i', $tutor['id']);
+        $existingStmt->execute();
+        $existingRows = $existingStmt->get_result();
+        while ($existing = $existingRows->fetch_assoc()) $existingIds[] = (int) $existing['course_id'];
+        $existingStmt->close();
+
+        $remove = db()->prepare('DELETE FROM tutor_courses WHERE tutor_id = ? AND course_id = ?');
+        $appointmentCheck = db()->prepare('SELECT id FROM appointments WHERE tutor_id = ? AND course_id = ? LIMIT 1');
+        foreach (array_diff($existingIds, $courseIds) as $removedCourseId) {
+            $appointmentCheck->bind_param('ii', $tutor['id'], $removedCourseId);
+            $appointmentCheck->execute();
+            if (!$appointmentCheck->get_result()->fetch_assoc()) {
+                $remove->bind_param('ii', $tutor['id'], $removedCourseId);
+                $remove->execute();
+            }
+        }
+        $appointmentCheck->close();
+        $remove->close();
         if ($courseIds) {
             $insert = db()->prepare("INSERT INTO tutor_courses (tutor_id, course_id, proposed_rate, rate_status) VALUES (?, ?, ?, 'PENDING') ON CONFLICT (tutor_id, course_id) DO UPDATE SET proposed_rate = EXCLUDED.proposed_rate, rate_status = 'PENDING', rate_reviewed_by = NULL, rate_reviewed_at = NULL");
             foreach ($courseIds as $courseId) {
