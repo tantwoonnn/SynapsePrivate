@@ -13,7 +13,7 @@ require __DIR__ . '/includes/header.php';
             <p class="lead mb-4">Synapse connects campus learners with peer tutors for short, focused one-hour sessions.</p>
             <a href="<?= e(url('register.php')) ?>" class="btn btn-light btn-lg me-2"><i class="bi bi-person-plus me-1"></i> Create an account</a>
             <a href="<?= e(url('login.php')) ?>" class="btn btn-outline-light btn-lg me-2"><i class="bi bi-box-arrow-in-right me-1"></i> Log in</a>
-            <a href="#how-it-works" class="btn btn-outline-light btn-lg">How it works</a>
+            <a href="<?= e(url('how-it-works.php')) ?>" class="btn btn-outline-light btn-lg">How it works</a>
         </div>
         <div class="col-lg-5">
             <ol class="workflow list-unstyled mb-0">

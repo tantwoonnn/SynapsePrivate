@@ -65,7 +65,6 @@ require __DIR__ . '/includes/header.php';
             <div class="mb-4"><label class="form-label" for="password">Password</label><input class="form-control form-control-lg" id="password" type="password" name="password" required autocomplete="current-password"></div>
             <button class="btn btn-primary btn-lg w-100" type="submit">Log in</button>
         </form>
-        <p class="small text-muted mt-4 mb-0">Demo account details are in README.md.</p>
     </div></div>
     <p class="text-center small mt-3">New to Synapse? <a href="<?= e(url('register.php')) ?>">Create a learner account</a></p>
     <p class="text-center small mt-2"><a href="<?= e(url('index.php')) ?>">Back to Synapse</a></p>
